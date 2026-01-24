@@ -99,12 +99,6 @@ export function Header() {
                 Submit Content
               </Link>
               <Link
-                href="/shaka"
-                className="text-white hover:text-gold text-base font-semibold transition-colors"
-              >
-                SHAKA
-              </Link>
-              <Link
                 href="/raffle"
                 className="text-white hover:text-gold text-base font-semibold transition-colors"
               >
@@ -191,12 +185,6 @@ export function Header() {
                 className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
               >
                 Submit Content
-              </Link>
-              <Link
-                href="/shaka"
-                className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
-              >
-                SHAKA
               </Link>
               <Link
                 href="/raffle"
