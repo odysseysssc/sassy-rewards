@@ -230,6 +230,15 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        <div className="text-center mt-8">
+          <Link
+            href="/submit"
+            className="btn-primary inline-block px-8 py-3 rounded-lg text-base font-bold"
+          >
+            What Content We Want
+          </Link>
+        </div>
       </section>
 
       {/* Divider */}
