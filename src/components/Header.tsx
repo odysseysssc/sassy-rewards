@@ -114,7 +114,7 @@ export function Header() {
                   href="/raffle"
                   className="text-white hover:text-gold text-base font-semibold transition-colors"
                 >
-                  Pin Wheel
+                  Raffle
                 </Link>
                 <Link
                   href="/shaka"
@@ -213,7 +213,7 @@ export function Header() {
               href="/raffle"
               className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
             >
-              Pin Wheel
+              Raffle
             </Link>
             <Link
               href="/shaka"
