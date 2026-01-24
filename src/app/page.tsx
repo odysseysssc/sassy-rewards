@@ -55,7 +55,13 @@ export default function Home() {
             <span className="gradient-text">Get Rewarded.</span>
           </h1>
           <p className="text-base md:text-lg text-white/60 leading-relaxed">
-            GRIT points track your participation in Shredding Sassy. Earn GRIT through buying products and creating content. The more you contribute, the more you earn.
+            GRIT points track your participation in Shredding Sassy.
+          </p>
+          <p className="text-base md:text-lg text-white/60 leading-relaxed mt-2">
+            Earn GRIT through buying products and creating content.
+          </p>
+          <p className="text-base md:text-lg text-white/60 leading-relaxed mt-2">
+            The more you contribute, the more you earn.
           </p>
         </div>
       </section>
@@ -169,7 +175,7 @@ export default function Home() {
       <section id="create" className="max-w-7xl mx-auto px-4 md:px-6 lg:px-12 py-8 md:py-10 scroll-mt-20">
         <div className="text-center mb-12">
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
-            Create Content
+            Create Content and Earn
           </h2>
           <p className="text-white/50">
             Share your Shredding Sassy gear and earn GRIT rewards
@@ -219,14 +225,12 @@ export default function Home() {
               <p className="text-white/70 font-medium mb-6">
                 Separate from general submissions. Bigger rewards. More glory.
               </p>
-              <a
-                href="https://discord.gg/sassy"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/shred-the-feed"
                 className="inline-block px-6 py-2.5 rounded-lg text-sm font-bold border border-purple-500/50 text-purple-400 hover:bg-purple-500/10 transition-colors"
               >
                 Enter Competition
-              </a>
+              </Link>
             </div>
           </div>
         </div>
