@@ -55,12 +55,8 @@ export default function Home() {
             <span className="gradient-text">Get Rewarded.</span>
           </h1>
           <p className="text-base md:text-lg text-white/60 leading-relaxed">
-            GRIT points track your participation in Shredding Sassy.
-          </p>
-          <p className="text-base md:text-lg text-white/60 leading-relaxed mt-2">
-            Earn GRIT through buying products and creating content.
-          </p>
-          <p className="text-base md:text-lg text-white/60 leading-relaxed mt-2">
+            GRIT points track your participation in Shredding Sassy.<br />
+            Earn GRIT through buying products and creating content.<br />
             The more you contribute, the more you earn.
           </p>
         </div>
