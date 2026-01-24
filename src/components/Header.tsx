@@ -90,24 +90,28 @@ export function Header() {
           >
             Home
           </Link>
-          <Link
-            href="/submit"
-            className="text-white hover:text-gold text-base font-semibold transition-colors"
-          >
-            Submit Content
-          </Link>
-          <Link
-            href="/shaka"
-            className="text-white hover:text-gold text-base font-semibold transition-colors"
-          >
-            SHAKA
-          </Link>
-          <Link
-            href="/raffle"
-            className="text-white hover:text-gold text-base font-semibold transition-colors"
-          >
-            Raffle
-          </Link>
+          {isLoggedIn && (
+            <>
+              <Link
+                href="/submit"
+                className="text-white hover:text-gold text-base font-semibold transition-colors"
+              >
+                Submit Content
+              </Link>
+              <Link
+                href="/shaka"
+                className="text-white hover:text-gold text-base font-semibold transition-colors"
+              >
+                SHAKA
+              </Link>
+              <Link
+                href="/raffle"
+                className="text-white hover:text-gold text-base font-semibold transition-colors"
+              >
+                Raffle
+              </Link>
+            </>
+          )}
         </nav>
 
         {/* Right Side - Auth */}
@@ -180,24 +184,28 @@ export function Header() {
           >
             Home
           </Link>
-          <Link
-            href="/submit"
-            className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
-          >
-            Submit Content
-          </Link>
-          <Link
-            href="/shaka"
-            className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
-          >
-            SHAKA
-          </Link>
-          <Link
-            href="/raffle"
-            className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
-          >
-            Raffle
-          </Link>
+          {isLoggedIn && (
+            <>
+              <Link
+                href="/submit"
+                className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
+              >
+                Submit Content
+              </Link>
+              <Link
+                href="/shaka"
+                className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
+              >
+                SHAKA
+              </Link>
+              <Link
+                href="/raffle"
+                className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
+              >
+                Raffle
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>
