@@ -13,6 +13,7 @@ export function Header() {
   const { disconnect } = useDisconnect();
   const [gritBalance, setGritBalance] = useState<number | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   // Determine login status - session exists or wallet connected
   const isLoggedIn = !!session?.user || isConnected;
@@ -83,49 +84,63 @@ export function Header() {
         </Link>
 
         {/* Nav Links */}
-        <nav className="hidden md:flex items-center gap-6">
-          {isLoggedIn && (
-            <>
-              {/* Earn Section */}
-              <div className="flex items-center gap-3">
-                <span className="text-white/40 text-sm font-medium">Earn:</span>
-                <a
-                  href="https://shreddingsassy.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-white hover:text-gold text-base font-semibold transition-colors"
+        {isLoggedIn && (
+          <nav className="hidden md:flex items-center gap-6">
+            <Link
+              href="/submit"
+              className="text-white hover:text-gold text-base font-semibold transition-colors"
+            >
+              Submit Content
+            </Link>
+            <Link
+              href="/raffle"
+              className="text-white hover:text-gold text-base font-semibold transition-colors"
+            >
+              Pin Wheel
+            </Link>
+            <div className="relative">
+              <button
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                className="flex items-center gap-1 text-white hover:text-gold text-base font-semibold transition-colors"
+              >
+                More
+                <svg
+                  className={`w-4 h-4 transition-transform ${showMoreMenu ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  Shop
-                </a>
-                <Link
-                  href="/submit"
-                  className="text-white hover:text-gold text-base font-semibold transition-colors"
-                >
-                  Create Content
-                </Link>
-              </div>
-
-              <div className="w-px h-5 bg-white/10" />
-
-              {/* Rewards Section */}
-              <div className="flex items-center gap-3">
-                <span className="text-white/40 text-sm font-medium">Rewards:</span>
-                <Link
-                  href="/raffle"
-                  className="text-white hover:text-gold text-base font-semibold transition-colors"
-                >
-                  Raffle
-                </Link>
-                <Link
-                  href="/shaka"
-                  className="text-white hover:text-gold text-base font-semibold transition-colors"
-                >
-                  SHAKA
-                </Link>
-              </div>
-            </>
-          )}
-        </nav>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showMoreMenu && (
+                <div className="absolute left-0 mt-2 w-48 card-premium rounded-lg py-2 z-50">
+                  <Link
+                    href="/shred-the-feed"
+                    onClick={() => setShowMoreMenu(false)}
+                    className="block px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 transition-colors text-sm"
+                  >
+                    Shred the Feed
+                  </Link>
+                  <Link
+                    href="/shaka"
+                    onClick={() => setShowMoreMenu(false)}
+                    className="block px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 transition-colors text-sm"
+                  >
+                    SHAKA
+                  </Link>
+                  <Link
+                    href="/faq"
+                    onClick={() => setShowMoreMenu(false)}
+                    className="block px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 transition-colors text-sm"
+                  >
+                    FAQs
+                  </Link>
+                </div>
+              )}
+            </div>
+          </nav>
+        )}
 
         {/* Right Side - Auth */}
         <div className="flex items-center gap-3">
@@ -191,35 +206,36 @@ export function Header() {
       {/* Mobile Nav */}
       {isLoggedIn && (
         <div className="md:hidden border-t border-white/5">
-          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4 overflow-x-auto">
-            <span className="text-white/40 text-xs font-medium whitespace-nowrap">Earn:</span>
-            <a
-              href="https://shreddingsassy.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
-            >
-              Shop
-            </a>
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-5 overflow-x-auto">
             <Link
               href="/submit"
               className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
             >
-              Create
+              Submit Content
             </Link>
-            <div className="w-px h-4 bg-white/10" />
-            <span className="text-white/40 text-xs font-medium whitespace-nowrap">Rewards:</span>
             <Link
               href="/raffle"
               className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
             >
-              Raffle
+              Pin Wheel
+            </Link>
+            <Link
+              href="/shred-the-feed"
+              className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
+            >
+              Shred the Feed
             </Link>
             <Link
               href="/shaka"
               className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
             >
               SHAKA
+            </Link>
+            <Link
+              href="/faq"
+              className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
+            >
+              FAQs
             </Link>
           </div>
         </div>
