@@ -83,27 +83,46 @@ export function Header() {
         </Link>
 
         {/* Nav Links */}
-        <nav className="hidden md:flex items-center gap-8">
-          <Link
-            href="/"
-            className="text-white hover:text-gold text-base font-semibold transition-colors"
-          >
-            Home
-          </Link>
+        <nav className="hidden md:flex items-center gap-6">
           {isLoggedIn && (
             <>
-              <Link
-                href="/submit"
-                className="text-white hover:text-gold text-base font-semibold transition-colors"
-              >
-                Submit Content
-              </Link>
-              <Link
-                href="/raffle"
-                className="text-white hover:text-gold text-base font-semibold transition-colors"
-              >
-                Raffle
-              </Link>
+              {/* Earn Section */}
+              <div className="flex items-center gap-3">
+                <span className="text-white/40 text-sm font-medium">Earn:</span>
+                <a
+                  href="https://shreddingsassy.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-white hover:text-gold text-base font-semibold transition-colors"
+                >
+                  Shop
+                </a>
+                <Link
+                  href="/submit"
+                  className="text-white hover:text-gold text-base font-semibold transition-colors"
+                >
+                  Create Content
+                </Link>
+              </div>
+
+              <div className="w-px h-5 bg-white/10" />
+
+              {/* Rewards Section */}
+              <div className="flex items-center gap-3">
+                <span className="text-white/40 text-sm font-medium">Rewards:</span>
+                <Link
+                  href="/raffle"
+                  className="text-white hover:text-gold text-base font-semibold transition-colors"
+                >
+                  Pin Wheel
+                </Link>
+                <Link
+                  href="/shaka"
+                  className="text-white hover:text-gold text-base font-semibold transition-colors"
+                >
+                  SHAKA
+                </Link>
+              </div>
             </>
           )}
         </nav>
@@ -170,32 +189,41 @@ export function Header() {
       </div>
 
       {/* Mobile Nav */}
-      <div className="md:hidden border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-6 overflow-x-auto">
-          <Link
-            href="/"
-            className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
-          >
-            Home
-          </Link>
-          {isLoggedIn && (
-            <>
-              <Link
-                href="/submit"
-                className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
-              >
-                Submit Content
-              </Link>
-              <Link
-                href="/raffle"
-                className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
-              >
-                Raffle
-              </Link>
-            </>
-          )}
+      {isLoggedIn && (
+        <div className="md:hidden border-t border-white/5">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4 overflow-x-auto">
+            <span className="text-white/40 text-xs font-medium whitespace-nowrap">Earn:</span>
+            <a
+              href="https://shreddingsassy.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
+            >
+              Shop
+            </a>
+            <Link
+              href="/submit"
+              className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
+            >
+              Create
+            </Link>
+            <div className="w-px h-4 bg-white/10" />
+            <span className="text-white/40 text-xs font-medium whitespace-nowrap">Rewards:</span>
+            <Link
+              href="/raffle"
+              className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
+            >
+              Pin Wheel
+            </Link>
+            <Link
+              href="/shaka"
+              className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
+            >
+              SHAKA
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
     </header>
   );
 }
