@@ -110,7 +110,7 @@ export default function ShakaPage() {
                 $SHAKA Flips That
               </h2>
               <p className="text-white/60 mb-4 text-lg">
-                10% of all brand revenue flows into $SHAKA buybacks. The more Sassy grows, the more the ecosystem gets fueled.
+                10% of all brand revenue flows into $SHAKA buybacks. The more Shredding Sassy grows, the more the ecosystem gets fueled.
               </p>
               <p className="text-white/70 text-lg font-medium">
                 When the brand wins, holders win. Period.
@@ -146,7 +146,7 @@ export default function ShakaPage() {
             </div>
             <h3 className="text-white font-semibold mb-2">Brand Revenue</h3>
             <p className="text-white/50 text-sm">
-              Merch, collabs, licensing — Sassy generates revenue
+              Merch, collabs, licensing — Shredding Sassy generates revenue
             </p>
           </div>
 

@@ -143,7 +143,7 @@ export default function Submit() {
           Submit Your Content
         </h1>
         <p className="text-white/50 text-center mb-12">
-          Share your Sassy content on socials, submit the link here, and earn GRIT when approved.
+          Share your Shredding Sassy content on socials, submit the link here, and earn GRIT when approved.
         </p>
 
         {/* How It Works */}
@@ -157,7 +157,7 @@ export default function Submit() {
               </div>
               <h3 className="text-white font-semibold mb-2">Create</h3>
               <p className="text-white/50 text-sm">
-                Post content featuring Sassy products on your socials (Instagram, TikTok, X, YouTube)
+                Post content featuring Shredding Sassy products on your socials (Instagram, TikTok, X, YouTube)
               </p>
             </div>
 
@@ -195,11 +195,11 @@ export default function Submit() {
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2">
                   <span>🛹</span>
-                  <span className="text-white/60">Action shots - skating, surfing, snowboarding in Sassy gear</span>
+                  <span className="text-white/60">Action shots - skating, surfing, snowboarding in Shredding Sassy gear</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span>📸</span>
-                  <span className="text-white/60">Lifestyle photos - wearing Sassy out in the wild</span>
+                  <span className="text-white/60">Lifestyle photos - wearing Shredding Sassy out in the wild</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span>📦</span>
@@ -225,7 +225,7 @@ export default function Submit() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-400">✓</span>
-                  <span>Sassy products clearly visible</span>
+                  <span>Shredding Sassy products clearly visible</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-400">✓</span>
@@ -242,7 +242,7 @@ export default function Submit() {
           <div className="mt-6 pt-4 border-t border-white/10">
             <p className="text-white/40 text-sm">
               <span className="text-purple-400 font-semibold">Note about Shred the Feed:</span>{' '}
-              Looking for the Shred the Feed competition? That&apos;s a separate event specifically for action sports shredding content. This submission page is for ALL content featuring Sassy.
+              Looking for the Shred the Feed competition? That&apos;s a separate event specifically for action sports shredding content. This submission page is for ALL content featuring Shredding Sassy.
             </p>
           </div>
         </div>
@@ -340,7 +340,7 @@ export default function Submit() {
           <div className="mt-6 pt-6 border-t border-white/10">
             <h3 className="text-white/70 text-sm font-semibold mb-2">Submission Guidelines</h3>
             <ul className="text-white/40 text-xs space-y-1">
-              <li>• Original content featuring Sassy products</li>
+              <li>• Original content featuring Shredding Sassy products</li>
               <li>• Must be public (not private/locked accounts)</li>
               <li>• One submission per piece of content</li>
               <li>• Submissions reviewed within 48-72 hours</li>

@@ -172,7 +172,7 @@ export default function Home() {
             Create Content
           </h2>
           <p className="text-white/50">
-            Share your Sassy gear and earn GRIT rewards
+            Share your Shredding Sassy gear and earn GRIT rewards
           </p>
         </div>
 
@@ -189,7 +189,7 @@ export default function Home() {
               </div>
               <h3 className="text-white font-semibold text-xl mb-3">Create Content, Earn GRIT</h3>
               <p className="text-white/50 mb-6">
-                Share your Sassy gear on socials. Lifestyle shots, unboxing videos, reviews — if Sassy&apos;s in the frame, we want to see it.
+                Share your Shredding Sassy gear on socials. Lifestyle shots, unboxing videos, reviews — if Shredding Sassy&apos;s in the frame, we want to see it.
               </p>
               <p className="text-white/70 font-medium mb-6">
                 Post it. Submit it. Get GRIT.
