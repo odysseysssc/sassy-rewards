@@ -18,31 +18,12 @@ interface Submission {
   review_note: string | null;
 }
 
-const PLATFORMS = [
-  { value: 'twitter', label: 'Twitter/X' },
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'tiktok', label: 'TikTok' },
-  { value: 'youtube', label: 'YouTube' },
-  { value: 'other', label: 'Other' },
-];
-
-const CONTENT_TYPES = [
-  { value: 'photo', label: 'Photo' },
-  { value: 'video', label: 'Video' },
-  { value: 'story', label: 'Story/Reel' },
-  { value: 'post', label: 'Post/Thread' },
-  { value: 'other', label: 'Other' },
-];
-
 export default function Submit() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
 
   // Form state
-  const [platform, setPlatform] = useState('');
   const [contentUrl, setContentUrl] = useState('');
-  const [contentType, setContentType] = useState('');
-  const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -93,10 +74,7 @@ export default function Submit() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          platform,
           contentUrl,
-          contentType,
-          description: description || undefined,
         }),
       });
 
@@ -104,12 +82,7 @@ export default function Submit() {
         const data = await res.json();
         setSuccess(true);
         setSubmissions([data.submission, ...submissions]);
-        // Reset form
-        setPlatform('');
         setContentUrl('');
-        setContentType('');
-        setDescription('');
-        // Hide success after 3 seconds
         setTimeout(() => setSuccess(false), 3000);
       } else {
         const data = await res.json();
@@ -140,115 +113,176 @@ export default function Submit() {
 
       <section className="max-w-3xl mx-auto px-4 md:px-6 lg:px-12 py-16 md:py-20">
         <h1 className="text-3xl md:text-4xl font-bold text-white text-center mb-2">
-          Submit Your Content
+          Submit Content
         </h1>
         <p className="text-white/50 text-center mb-12">
-          Share your Shredding Sassy content on socials, submit the link here, and earn GRIT when approved.
+          Create content for Shredding Sassy. Earn GRIT. Convert to SHAKA.
         </p>
 
-        {/* How It Works */}
-        <div className="mb-12">
-          <h2 className="text-xl font-bold text-white text-center mb-8">How It Works</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* Step 1 */}
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-gold/20 flex items-center justify-center mx-auto mb-4">
-                <span className="text-gold font-bold">1</span>
-              </div>
-              <h3 className="text-white font-semibold mb-2">Create</h3>
-              <p className="text-white/50 text-sm">
-                Post content featuring Shredding Sassy products on your socials (Instagram, TikTok, X, YouTube)
-              </p>
-            </div>
+        {/* How GRIT Works */}
+        <div className="card-premium rounded-xl p-6 mb-6">
+          <h2 className="text-lg font-bold text-white mb-3">How It Works</h2>
+          <p className="text-white/60 text-sm mb-4">
+            GRIT is our loyalty points system. Create content featuring Shredding Sassy or talking about us,
+            and earn GRIT based on the content type and how many people see it. During periodic conversion
+            windows, you can swap your GRIT for $SHAKA tokens.
+          </p>
+        </div>
 
-            {/* Step 2 */}
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-gold/20 flex items-center justify-center mx-auto mb-4">
-                <span className="text-gold font-bold">2</span>
-              </div>
-              <h3 className="text-white font-semibold mb-2">Submit</h3>
-              <p className="text-white/50 text-sm">
-                Drop the link here for review
-              </p>
+        {/* Base Rewards */}
+        <div className="card-premium rounded-xl p-6 mb-6">
+          <h2 className="text-lg font-bold text-white mb-4">Base GRIT Rewards</h2>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-white/70">Photo post</span>
+              <span className="text-gold font-bold">25 GRIT</span>
             </div>
-
-            {/* Step 3 */}
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-gold/20 flex items-center justify-center mx-auto mb-4">
-                <span className="text-gold font-bold">3</span>
-              </div>
-              <h3 className="text-white font-semibold mb-2">Earn</h3>
-              <p className="text-white/50 text-sm">
-                Get GRIT when your submission is approved (reviewed within 48-72 hours)
-              </p>
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-white/70">X thread or article</span>
+              <span className="text-gold font-bold">100 GRIT</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-white/70">X Space (hosting)</span>
+              <span className="text-gold font-bold">100 GRIT</span>
+              <span className="text-white/40 text-xs ml-2">(flat rate)</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-white/70">Short video (under 60s)</span>
+              <span className="text-gold font-bold">150 GRIT</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-white/70">Unboxing or styling video</span>
+              <span className="text-gold font-bold">300 GRIT</span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-white/70">Long-form video (3+ min)</span>
+              <span className="text-gold font-bold">400 GRIT</span>
             </div>
           </div>
         </div>
 
-        {/* What We're Looking For */}
-        <div className="card-premium rounded-xl p-6 mb-8">
-          <h2 className="text-lg font-bold text-white mb-4">What We&apos;re Looking For</h2>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-white/70 text-sm font-semibold mb-3">Content We Love</h3>
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-start gap-2">
-                  <span>🛹</span>
-                  <span className="text-white/60">Action shots - skating, surfing, snowboarding in Shredding Sassy gear</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span>📸</span>
-                  <span className="text-white/60">Lifestyle photos - wearing Shredding Sassy out in the wild</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span>📦</span>
-                  <span className="text-white/60">Unboxing videos and first impressions</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span>🎬</span>
-                  <span className="text-white/60">Creative edits and honest reviews</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span>🌄</span>
-                  <span className="text-white/60">Adventure content featuring the brand</span>
-                </li>
-              </ul>
+        {/* View Multipliers */}
+        <div className="card-premium rounded-xl p-6 mb-6">
+          <h2 className="text-lg font-bold text-white mb-2">View Multipliers</h2>
+          <p className="text-white/40 text-sm mb-4">
+            More reach = more GRIT. Applies to all content except Spaces.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white/5 rounded-lg p-3 text-center">
+              <div className="text-white/50 text-xs mb-1">Under 1k</div>
+              <div className="text-white font-bold">1x</div>
             </div>
-
-            <div>
-              <h3 className="text-white/70 text-sm font-semibold mb-3">Tips for Approval</h3>
-              <ul className="space-y-2 text-sm text-white/60">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-400">✓</span>
-                  <span>Original content only (not reposts)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-400">✓</span>
-                  <span>Shredding Sassy products clearly visible</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-400">✓</span>
-                  <span>Public posts (not private/locked accounts)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-400">✓</span>
-                  <span>Quality matters - put some effort in</span>
-                </li>
-              </ul>
+            <div className="bg-white/5 rounded-lg p-3 text-center">
+              <div className="text-white/50 text-xs mb-1">1k - 5k</div>
+              <div className="text-gold font-bold">1.5x</div>
+            </div>
+            <div className="bg-white/5 rounded-lg p-3 text-center">
+              <div className="text-white/50 text-xs mb-1">5k - 20k</div>
+              <div className="text-gold font-bold">2x</div>
+            </div>
+            <div className="bg-white/5 rounded-lg p-3 text-center">
+              <div className="text-white/50 text-xs mb-1">20k+</div>
+              <div className="text-gold font-bold">2.5x</div>
             </div>
           </div>
+        </div>
 
-          <div className="mt-6 pt-4 border-t border-white/10">
+        {/* Examples */}
+        <div className="card-premium rounded-xl p-6 mb-6">
+          <h2 className="text-lg font-bold text-white mb-4">Examples</h2>
+          <div className="space-y-4 text-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-gold text-xs">1</span>
+              </div>
+              <div>
+                <p className="text-white/70">
+                  Post a photo wearing our gear, gets 800 views
+                </p>
+                <p className="text-gold font-medium">
+                  25 GRIT x 1x = 25 GRIT
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-gold text-xs">2</span>
+              </div>
+              <div>
+                <p className="text-white/70">
+                  Drop a TikTok unboxing, hits 8k views
+                </p>
+                <p className="text-gold font-medium">
+                  300 GRIT x 2x = 600 GRIT
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-gold text-xs">3</span>
+              </div>
+              <div>
+                <p className="text-white/70">
+                  Write an X thread about us, goes viral at 25k views
+                </p>
+                <p className="text-gold font-medium">
+                  100 GRIT x 2.5x = 250 GRIT
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-gold/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-gold text-xs">4</span>
+              </div>
+              <div>
+                <p className="text-white/70">
+                  Host a Space talking about Shredding Sassy
+                </p>
+                <p className="text-gold font-medium">
+                  100 GRIT (flat rate, no multiplier)
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Requirements */}
+        <div className="card-premium rounded-xl p-6 mb-8">
+          <h2 className="text-lg font-bold text-white mb-3">Requirements</h2>
+          <ul className="space-y-2 text-sm text-white/60">
+            <li className="flex items-center gap-2">
+              <span className="text-gold">•</span>
+              Tag <span className="text-white font-medium">@shreddingsassy</span> in your content
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-gold">•</span>
+              One submission per day per account
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-gold">•</span>
+              Content must be public (no locked accounts)
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-gold">•</span>
+              Original content only
+            </li>
+          </ul>
+          <div className="mt-4 pt-4 border-t border-white/10">
             <p className="text-white/40 text-sm">
-              <span className="text-purple-400 font-semibold">Note about Shred the Feed:</span>{' '}
-              Looking for the Shred the Feed competition? That&apos;s a separate event specifically for action sports shredding content. This submission page is for ALL content featuring Shredding Sassy.
+              <span className="text-purple-400 font-medium">Looking for Shred the Feed?</span>{' '}
+              That&apos;s our monthly action sports competition with its own{' '}
+              <Link href="/shred-the-feed" className="text-purple-400 hover:underline">
+                submission page
+              </Link>
+              . This page is for general content only.
             </p>
           </div>
         </div>
 
         {/* Submission Form */}
         <div className="card-premium rounded-xl p-6 mb-8">
+          <h2 className="text-lg font-bold text-white mb-4">Submit Your Link</h2>
+
           {success && (
             <div className="bg-green-500/20 border border-green-500/30 rounded-lg px-4 py-3 mb-6">
               <p className="text-green-400 text-sm">
@@ -258,69 +292,18 @@ export default function Submit() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Platform */}
             <div>
-              <label className="block text-white/70 text-sm mb-2">Platform</label>
-              <select
-                value={platform}
-                onChange={(e) => setPlatform(e.target.value)}
-                className="input-premium w-full px-4 py-3 rounded-lg text-white bg-purple-darker"
-                required
-              >
-                <option value="">Select platform...</option>
-                {PLATFORMS.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Content URL */}
-            <div>
-              <label className="block text-white/70 text-sm mb-2">Content URL</label>
               <input
                 type="url"
                 value={contentUrl}
                 onChange={(e) => setContentUrl(e.target.value)}
-                placeholder="https://twitter.com/yourhandle/status/..."
-                className="input-premium w-full px-4 py-3 rounded-lg text-white"
+                placeholder="Paste your content link here..."
+                className="input-premium w-full px-4 py-4 rounded-lg text-white text-lg"
                 required
               />
-            </div>
-
-            {/* Content Type */}
-            <div>
-              <label className="block text-white/70 text-sm mb-2">Content Type</label>
-              <select
-                value={contentType}
-                onChange={(e) => setContentType(e.target.value)}
-                className="input-premium w-full px-4 py-3 rounded-lg text-white bg-purple-darker"
-                required
-              >
-                <option value="">Select type...</option>
-                {CONTENT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="block text-white/70 text-sm mb-2">
-                Description <span className="text-white/40">(optional)</span>
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Tell us about this content..."
-                className="input-premium w-full px-4 py-3 rounded-lg text-white resize-none"
-                rows={3}
-                maxLength={500}
-              />
-              <p className="text-white/30 text-xs mt-1">{description.length}/500</p>
+              <p className="text-white/40 text-xs mt-2">
+                We&apos;ll figure out the platform and content type from the link.
+              </p>
             </div>
 
             {error && (
@@ -330,22 +313,11 @@ export default function Submit() {
             <button
               type="submit"
               disabled={submitting}
-              className="btn-primary w-full py-3 rounded-lg font-bold"
+              className="btn-primary w-full py-4 rounded-lg font-bold text-lg"
             >
-              {submitting ? 'Submitting...' : 'Submit for Review'}
+              {submitting ? 'Submitting...' : 'Submit'}
             </button>
           </form>
-
-          {/* Guidelines */}
-          <div className="mt-6 pt-6 border-t border-white/10">
-            <h3 className="text-white/70 text-sm font-semibold mb-2">Submission Guidelines</h3>
-            <ul className="text-white/40 text-xs space-y-1">
-              <li>• Original content featuring Shredding Sassy products</li>
-              <li>• Must be public (not private/locked accounts)</li>
-              <li>• One submission per piece of content</li>
-              <li>• Submissions reviewed within 48-72 hours</li>
-            </ul>
-          </div>
         </div>
 
         {/* Past Submissions */}
@@ -358,7 +330,7 @@ export default function Submit() {
             </div>
           ) : submissions.length === 0 ? (
             <p className="text-white/50 text-center py-8">
-              No submissions yet. Submit your first content above!
+              No submissions yet. Drop your first link above.
             </p>
           ) : (
             <div className="space-y-3">
@@ -368,14 +340,11 @@ export default function Submit() {
                   className="flex items-start justify-between py-3 border-b border-white/5 last:border-b-0"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm capitalize mb-1">
-                      {sub.platform} - {sub.content_type}
-                    </p>
                     <a
                       href={sub.content_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-gold/70 hover:text-gold text-xs truncate block"
+                      className="text-white hover:text-gold text-sm truncate block"
                     >
                       {sub.content_url}
                     </a>
