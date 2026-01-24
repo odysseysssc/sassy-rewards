@@ -1,8 +1,8 @@
 import { NextAuthOptions } from 'next-auth';
 import DiscordProvider from 'next-auth/providers/discord';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { findUserByEmail, createUser, findUserById } from './db';
-import { getOrCreateDripAccount, getMemberByDiscordId, getMemberByWallet } from './drip';
+import { findUserByEmail, createUser, findUserById, claimPendingGrit, getTotalPendingGrit } from './db';
+import { getOrCreateDripAccount, getMemberByDiscordId, getMemberByWallet, awardGritToAccount } from './drip';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -43,6 +43,26 @@ export const authOptions: NextAuthOptions = {
           if (!user) {
             // Create new user
             user = await createUser(supabaseUserId, email, dripAccountId || undefined);
+          }
+
+          // Claim any pending GRIT for this email
+          const finalDripAccountId = user.drip_account_id || dripAccountId;
+          if (finalDripAccountId) {
+            try {
+              const pendingAmount = await getTotalPendingGrit(email);
+              if (pendingAmount > 0) {
+                // Award the pending GRIT to their Drip account
+                const awarded = await awardGritToAccount(finalDripAccountId, pendingAmount, 'Claimed pending GRIT on signup');
+                if (awarded) {
+                  // Mark as claimed in our DB
+                  await claimPendingGrit(email, user.id);
+                  console.log(`Claimed ${pendingAmount} pending GRIT for ${email}`);
+                }
+              }
+            } catch (claimError) {
+              console.error('Error claiming pending GRIT:', claimError);
+              // Don't fail auth if claiming fails
+            }
           }
 
           return {
