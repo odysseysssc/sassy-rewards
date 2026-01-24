@@ -259,7 +259,7 @@ export default function Home() {
 
         <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           {/* Daily Pin Wheel */}
-          <div className="card-premium rounded-xl p-6">
+          <Link href="/raffle" className="card-premium rounded-xl p-6 hover:border-gold/30 transition-all block">
             <div className="flex items-start gap-4">
               <div className="text-4xl">🎰</div>
               <div>
@@ -269,7 +269,7 @@ export default function Home() {
                 </p>
               </div>
             </div>
-          </div>
+          </Link>
 
           {/* Exclusive Rewards */}
           <div className="card-premium rounded-xl p-6">
@@ -285,7 +285,7 @@ export default function Home() {
           </div>
 
           {/* Convert to SHAKA */}
-          <div className="card-premium rounded-xl p-6">
+          <Link href="/shaka" className="card-premium rounded-xl p-6 hover:border-gold/30 transition-all block">
             <div className="flex items-start gap-4">
               <div className="text-4xl">🔄</div>
               <div>
@@ -295,7 +295,7 @@ export default function Home() {
                 </p>
               </div>
             </div>
-          </div>
+          </Link>
         </div>
 
         <div className="text-center mt-8">

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useAccount } from 'wagmi';
-import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { useRouter } from 'next/navigation';
 import { PinWheel } from '@/components/PinWheel';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -17,12 +17,21 @@ interface Winner {
 }
 
 export default function RafflePage() {
-  const { data: session } = useSession();
-  const { openConnectModal } = useConnectModal();
+  const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
   const { address, isConnected } = useAccount();
 
   // Get accountId from session if available
   const accountId = session?.user?.dripAccountId;
+  const isLoggedIn = isConnected || !!session?.user;
+
+  // Redirect to signin if not logged in
+  useEffect(() => {
+    if (sessionStatus === 'loading') return;
+    if (!isLoggedIn) {
+      router.push('/signin');
+    }
+  }, [isLoggedIn, sessionStatus, router]);
   const [gritBalance, setGritBalance] = useState<number | null>(null);
   const [hasEntered, setHasEntered] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
@@ -192,7 +201,6 @@ export default function RafflePage() {
   const hoursUntilDraw = Math.floor(msUntilDraw / (1000 * 60 * 60));
   const minutesUntilDraw = Math.floor((msUntilDraw % (1000 * 60 * 60)) / (1000 * 60));
 
-  const isLoggedIn = isConnected || !!accountId;
   const canEnter = isLoggedIn && gritBalance !== null && gritBalance >= RAFFLE_COST && !hasEntered && !isSpinning;
 
   // Format date for display
@@ -200,6 +208,19 @@ export default function RafflePage() {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
+
+  // Show loading while checking auth
+  if (sessionStatus === 'loading' || !isLoggedIn) {
+    return (
+      <main className="min-h-screen">
+        <Header />
+        <div className="flex items-center justify-center py-32">
+          <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+        </div>
+        <Footer />
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen">
@@ -252,23 +273,7 @@ export default function RafflePage() {
 
           {/* Right Side - takes 2 columns */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Connection State */}
-            {!isLoggedIn ? (
-              <div className="card-premium rounded-xl p-6 text-center">
-                <h3 className="text-xl font-bold text-white mb-4">Connect to Enter</h3>
-                <p className="text-white/60 mb-6">
-                  Connect your wallet to enter the daily pin wheel draw.
-                </p>
-                <button
-                  onClick={openConnectModal}
-                  className="btn-primary px-6 py-3 rounded-lg font-semibold"
-                >
-                  Connect Wallet
-                </button>
-              </div>
-            ) : (
-              <>
-                {/* Balance Card */}
+            {/* Balance Card */}
                 <div className="card-premium rounded-xl p-6">
                   <div className="text-white/50 text-sm">Your Grit Balance</div>
                   <div className="text-3xl font-bold text-gold">
@@ -353,8 +358,6 @@ export default function RafflePage() {
                     </div>
                   )}
                 </div>
-              </>
-            )}
           </div>
         </div>
 

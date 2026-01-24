@@ -32,11 +32,11 @@ const faqs: FAQItem[] = [
   },
   {
     question: 'What content should I submit?',
-    answer: 'We love seeing Shredding Sassy gear in action! This includes lifestyle photos, unboxing videos, product reviews, and action sports footage. Make sure Shredding Sassy products are clearly visible and the content is original.',
+    answer: 'We reward two types of content: 1) Product content — lifestyle photos, unboxing videos, reviews featuring Shredding Sassy gear. 2) Talking about us — X threads, Spaces, articles, or videos about Shredding Sassy in web3, NFTs, or crypto. If you are featuring our gear or spreading the word, we want to see it.',
   },
   {
     question: 'What is Shred the Feed?',
-    answer: 'Shred the Feed is our competition specifically for action sports content. If you are skating, surfing, snowboarding, or doing any action sport in Shredding Sassy gear, submit it to Shred the Feed for a chance at bigger rewards.',
+    answer: 'Shred the Feed is our competition for action sports content. Skating, surfing, snowboarding — show us your shred. Shredding Sassy gear is not required, but you will earn bonus points if our gear is visible in your clip.',
   },
   {
     question: 'How long does content review take?',

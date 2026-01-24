@@ -1,10 +1,41 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useAccount } from 'wagmi';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 
 export default function ShakaPage() {
+  const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
+  const { isConnected } = useAccount();
+
+  const isLoggedIn = isConnected || !!session?.user;
+
+  // Redirect to signin if not logged in
+  useEffect(() => {
+    if (sessionStatus === 'loading') return;
+    if (!isLoggedIn) {
+      router.push('/signin');
+    }
+  }, [isLoggedIn, sessionStatus, router]);
+
+  // Show loading while checking auth
+  if (sessionStatus === 'loading' || !isLoggedIn) {
+    return (
+      <main className="min-h-screen">
+        <Header />
+        <div className="flex items-center justify-center py-32">
+          <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+        </div>
+        <Footer />
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen">
       <Header />

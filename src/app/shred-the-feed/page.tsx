@@ -149,7 +149,7 @@ export default function ShredTheFeed() {
             Shred the Feed
           </h1>
           <p className="text-white/50 text-lg max-w-xl mx-auto">
-            Show us your best action sports content featuring Shredding Sassy gear.
+            Show us your best action sports content.
             Skating, surfing, snowboarding — if you&apos;re shredding, we want to see it.
           </p>
         </div>
@@ -159,8 +159,8 @@ export default function ShredTheFeed() {
           <div className="grid md:grid-cols-3 gap-6 text-center">
             <div>
               <div className="text-3xl mb-2">🏆</div>
-              <h3 className="text-white font-semibold mb-1">Bigger Rewards</h3>
-              <p className="text-white/50 text-sm">Top shredders earn bonus GRIT</p>
+              <h3 className="text-white font-semibold mb-1">Earn GRIT</h3>
+              <p className="text-white/50 text-sm">Get rewarded for your clips</p>
             </div>
             <div>
               <div className="text-3xl mb-2">🎬</div>
@@ -189,10 +189,6 @@ export default function ShredTheFeed() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-green-400">✓</span>
-                  <span className="text-white/70">Shredding Sassy gear clearly visible</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-400">✓</span>
                   <span className="text-white/70">Original content you created</span>
                 </li>
                 <li className="flex items-start gap-2">
@@ -205,6 +201,10 @@ export default function ShredTheFeed() {
             <div>
               <h3 className="text-purple-400 text-sm font-semibold mb-3">Bonus Points For</h3>
               <ul className="space-y-2 text-sm">
+                <li className="flex items-start gap-2">
+                  <span className="text-purple-400">★</span>
+                  <span className="text-white/70">Shredding Sassy gear visible in the clip</span>
+                </li>
                 <li className="flex items-start gap-2">
                   <span className="text-purple-400">★</span>
                   <span className="text-white/70">High-quality footage and editing</span>
