@@ -257,7 +257,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           {/* Daily Pin Wheel */}
           <div className="card-premium rounded-xl p-6">
             <div className="flex items-start gap-4">
@@ -266,6 +266,19 @@ export default function Home() {
                 <h3 className="text-white font-semibold text-lg mb-2">Daily Pin Wheel</h3>
                 <p className="text-white/50 text-sm">
                   Spin to win collectible enamel pins. Daily chances to add to your collection.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Exclusive Rewards */}
+          <div className="card-premium rounded-xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">🎁</div>
+              <div>
+                <h3 className="text-white font-semibold text-lg mb-2">Exclusive Rewards</h3>
+                <p className="text-white/50 text-sm">
+                  Raffles, limited edition drops, and more — only available with GRIT.
                 </p>
               </div>
             </div>
