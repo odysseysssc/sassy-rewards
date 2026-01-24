@@ -8,6 +8,7 @@ export interface DripMember {
   points: number;
   rank?: number;
   currencyId?: string;
+  discordId?: string;
 }
 
 export interface LeaderboardEntry {

@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createServerClient, UserProfile } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { getMemberByWallet } from '@/lib/drip';
+
+interface UserProfile {
+  wallet_address: string;
+  display_name?: string;
+  [key: string]: unknown;
+}
 
 export async function GET() {
   try {
