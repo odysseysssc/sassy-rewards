@@ -191,7 +191,7 @@ export default function Home() {
               </div>
               <h3 className="text-white font-semibold text-xl mb-3">Create Content, Earn GRIT</h3>
               <p className="text-white/50 mb-6">
-                Share your Shredding Sassy gear on socials. Lifestyle shots, unboxing videos, reviews — if Shredding Sassy&apos;s in the frame, we want to see it.
+                Show off your gear or spread the word. Unboxings, lifestyle shots, X threads, Spaces — if you&apos;re featuring Shredding Sassy or talking about us, we want to see it.
               </p>
               <p className="text-white/70 font-medium mb-6">
                 Post it. Submit it. Get GRIT.
@@ -219,7 +219,7 @@ export default function Home() {
                 Our competition for action sports content. Skating, surfing, snowboarding — show us what you&apos;ve got.
               </p>
               <p className="text-white/70 font-medium mb-6">
-                Separate from general submissions. Bigger rewards. More glory.
+                Separate from general submissions. Show us your shred.
               </p>
               <Link
                 href="/shred-the-feed"
