@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  <rect width="400" height="400" fill="#1a0330"/>
+  <circle cx="200" cy="180" r="100" fill="#280646" stroke="#FACC15" stroke-width="4"/>
+  <text x="200" y="175" text-anchor="middle" fill="#FACC15" font-family="Arial" font-weight="bold" font-size="28">SS</text>
+  <text x="200" y="205" text-anchor="middle" fill="#FACC15" font-family="Arial" font-size="14">SHREDDING</text>
+  <rect x="195" y="280" width="10" height="80" fill="#FACC15"/>
+  <circle cx="200" cy="370" r="15" fill="#FACC15"/>
+</svg>

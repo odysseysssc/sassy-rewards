@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  <rect width="400" height="400" fill="#1a0330"/>
+  <ellipse cx="200" cy="280" rx="160" ry="30" fill="#280646"/>
+  <ellipse cx="200" cy="270" rx="140" ry="25" fill="#FACC15"/>
+  <path d="M80 270 Q80 180 200 160 Q320 180 320 270" fill="#280646"/>
+  <path d="M100 260 Q100 190 200 175 Q300 190 300 260" fill="#1a0330"/>
+  <text x="200" y="230" text-anchor="middle" fill="#FACC15" font-family="Arial" font-weight="bold" font-size="24">SASSY</text>
+</svg>

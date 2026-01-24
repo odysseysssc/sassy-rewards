@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f0118;
+  --foreground: #ffffff;
+  --purple-dark: #280646;
+  --purple-darker: #1a0330;
+  --purple-deep: #0f0118;
+  --gold: #FACC15;
+  --gold-light: #FDE047;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-purple-dark: var(--purple-dark);
+  --color-purple-darker: var(--purple-darker);
+  --color-purple-deep: var(--purple-deep);
+  --color-gold: var(--gold);
+  --color-gold-light: var(--gold-light);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: linear-gradient(180deg, #1a0330 0%, #0f0118 50%, #0a000f 100%);
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+}
+
+/* Premium gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #FACC15 0%, #FDE047 50%, #FACC15 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effects */
+.glow-gold {
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.3), 0 0 40px rgba(250, 204, 21, 0.1);
+}
+
+.glow-gold-intense {
+  box-shadow: 0 0 30px rgba(250, 204, 21, 0.5), 0 0 60px rgba(250, 204, 21, 0.2), 0 0 100px rgba(250, 204, 21, 0.1);
+}
+
+.text-glow {
+  text-shadow: 0 0 20px rgba(250, 204, 21, 0.5), 0 0 40px rgba(250, 204, 21, 0.3);
+}
+
+/* Premium card gradient border */
+.card-premium {
+  background: linear-gradient(145deg, rgba(40, 6, 70, 0.8) 0%, rgba(26, 3, 48, 0.9) 100%);
+  border: 1px solid rgba(250, 204, 21, 0.15);
+  backdrop-filter: blur(10px);
+}
+
+.card-premium:hover {
+  border-color: rgba(250, 204, 21, 0.4);
+  box-shadow: 0 8px 32px rgba(250, 204, 21, 0.1), 0 0 0 1px rgba(250, 204, 21, 0.1);
+}
+
+/* Input styling */
+.input-premium {
+  background: rgba(26, 3, 48, 0.8);
+  border: 1px solid rgba(250, 204, 21, 0.2);
+  transition: all 0.3s ease;
+}
+
+.input-premium:focus {
+  border-color: rgba(250, 204, 21, 0.5);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.1);
+  outline: none;
+}
+
+/* Button styling */
+.btn-primary {
+  background: linear-gradient(135deg, #FACC15 0%, #FDE047 100%);
+  color: #280646;
+  font-weight: 700;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.4), 0 0 40px rgba(250, 204, 21, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid rgba(250, 204, 21, 0.3);
+  color: #FACC15;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  border-color: rgba(250, 204, 21, 0.6);
+  background: rgba(250, 204, 21, 0.1);
+}
+
+/* Table row highlight */
+.table-row-highlight {
+  background: rgba(250, 204, 21, 0.1);
+  border-left: 2px solid #FACC15;
+}
+
+/* Rainbowkit modal overrides */
+[data-rk] {
+  --rk-colors-accentColor: var(--gold);
+  --rk-colors-accentColorForeground: var(--purple-dark);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(26, 3, 48, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(250, 204, 21, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(250, 204, 21, 0.5);
+}
