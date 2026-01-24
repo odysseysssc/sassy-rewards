@@ -87,6 +87,12 @@ export function Header() {
         {isLoggedIn && (
           <nav className="hidden md:flex items-center gap-6">
             <Link
+              href="/"
+              className="text-white hover:text-gold text-base font-semibold transition-colors"
+            >
+              Home
+            </Link>
+            <Link
               href="/submit"
               className="text-white hover:text-gold text-base font-semibold transition-colors"
             >
@@ -207,6 +213,12 @@ export function Header() {
       {isLoggedIn && (
         <div className="md:hidden border-t border-white/5">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-5 overflow-x-auto">
+            <Link
+              href="/"
+              className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
+            >
+              Home
+            </Link>
             <Link
               href="/submit"
               className="text-white hover:text-gold text-sm font-semibold transition-colors whitespace-nowrap"
