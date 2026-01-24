@@ -236,7 +236,7 @@ export default function Home() {
             href="/submit"
             className="btn-primary inline-block px-8 py-3 rounded-lg text-base font-bold"
           >
-            What Content We Want
+            Learn More
           </Link>
         </div>
       </section>
@@ -247,7 +247,7 @@ export default function Home() {
       </div>
 
       {/* What Can I Do With GRIT? Section */}
-      <section id="rewards" className="max-w-7xl mx-auto px-4 md:px-6 lg:px-12 py-8 md:py-10 scroll-mt-20">
+      <section id="rewards" className="max-w-7xl mx-auto px-4 md:px-6 lg:px-12 py-12 md:py-16 scroll-mt-20">
         <div className="text-center mb-10">
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
             What Can I Do With GRIT?
