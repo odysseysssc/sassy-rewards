@@ -52,10 +52,10 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
     throw new Error('DRIP_REALM_ID is not configured');
   }
 
-  // Include currencyId to filter by GRIT specifically
+  // Include currencyId to filter by GRIT specifically, use 'take' for limit
   const url = currencyId
-    ? `/realms/${realmId}/members/leaderboard?limit=200&currencyId=${currencyId}`
-    : `/realms/${realmId}/members/leaderboard?limit=200`;
+    ? `/realms/${realmId}/members/leaderboard?take=200&currencyId=${currencyId}`
+    : `/realms/${realmId}/members/leaderboard?take=200`;
 
   const response = await dripFetch(url);
 
@@ -343,8 +343,8 @@ export async function getMemberByAccountId(accountId: string): Promise<DripMembe
     // The direct member endpoint doesn't exist, so search the leaderboard
     const currencyId = process.env.DRIP_GRIT_CURRENCY_ID;
     const url = currencyId
-      ? `/realms/${realmId}/members/leaderboard?limit=200&currencyId=${currencyId}`
-      : `/realms/${realmId}/members/leaderboard?limit=200`;
+      ? `/realms/${realmId}/members/leaderboard?take=200&currencyId=${currencyId}`
+      : `/realms/${realmId}/members/leaderboard?take=200`;
     const response = await dripFetch(url);
     const members = response.data || [];
 
