@@ -2,7 +2,7 @@
 
 import { useSession, signIn } from 'next-auth/react';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -42,7 +42,7 @@ interface ConnectedCredential {
   displayName?: string;
 }
 
-export default function Profile() {
+function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status: sessionStatus } = useSession();
@@ -760,6 +760,22 @@ export default function Profile() {
 
       <Footer />
     </main>
+  );
+}
+
+export default function Profile() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen">
+        <Header />
+        <div className="flex items-center justify-center py-32">
+          <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+        </div>
+        <Footer />
+      </main>
+    }>
+      <ProfileContent />
+    </Suspense>
   );
 }
 
