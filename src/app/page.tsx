@@ -21,7 +21,9 @@ export default function Home() {
   useEffect(() => {
     async function fetchLeaderboard() {
       try {
-        const res = await fetch('/api/drip/leaderboard');
+        const res = await fetch('/api/drip/leaderboard', {
+          cache: 'no-store',
+        });
         if (res.ok) {
           const data = await res.json();
           setLeaderboard(data.leaderboard || []);
@@ -81,7 +83,7 @@ export default function Home() {
         <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-6">
           {/* Hat Card */}
           <a
-            href="https://shreddingsassy.com/collections/hats"
+            href="https://www.shreddingsassy.com/collections/headwear"
             target="_blank"
             rel="noopener noreferrer"
             className="card-premium rounded-xl p-6 transition-all duration-300 block hover:scale-[1.02]"
@@ -103,7 +105,7 @@ export default function Home() {
 
           {/* Single Pin Card */}
           <a
-            href="https://shreddingsassy.com/collections/pins"
+            href="https://www.shreddingsassy.com/collections/collectible-pins"
             target="_blank"
             rel="noopener noreferrer"
             className="card-premium rounded-xl p-6 transition-all duration-300 block hover:scale-[1.02]"
@@ -125,7 +127,7 @@ export default function Home() {
 
           {/* Sticker Pack Card */}
           <a
-            href="https://shreddingsassy.com/collections/stickers"
+            href="https://www.shreddingsassy.com/collections/sticker-packs"
             target="_blank"
             rel="noopener noreferrer"
             className="card-premium rounded-xl p-6 transition-all duration-300 block hover:scale-[1.02]"
@@ -191,7 +193,7 @@ export default function Home() {
               </div>
               <h3 className="text-white font-semibold text-xl mb-3">Create Content, Earn GRIT</h3>
               <p className="text-white/50 mb-6">
-                Show off your gear or spread the word. Unboxings, lifestyle shots, X threads, Spaces — if you&apos;re featuring Shredding Sassy or talking about us, we want to see it.
+                Show off your gear or spread the word. Post on X, TikTok, Instagram — unboxings, lifestyle shots, threads, Spaces. If you&apos;re featuring Shredding Sassy or talking about us, we want to see it.
               </p>
               <p className="text-white/70 font-medium mb-6">
                 Post it. Submit it. Get GRIT.
@@ -216,7 +218,7 @@ export default function Home() {
               </div>
               <h3 className="text-white font-semibold text-xl mb-3">Shred the Feed</h3>
               <p className="text-white/50 mb-6">
-                Our competition for action sports content. Skating, surfing, snowboarding — show us what you&apos;ve got.
+                Our monthly competition for action sports content. Skating, surfing, snowboarding — show us what you&apos;ve got.
               </p>
               <p className="text-white/70 font-medium mb-6">
                 Separate from general submissions. Show us your shred.

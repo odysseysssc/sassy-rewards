@@ -138,12 +138,13 @@ export function PinWheel({ targetSegment, isSpinning, onSpinComplete, autoPlay =
           return (
             <div
               key={pin.name}
-              className="absolute w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-11 lg:h-11"
+              className="absolute w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-11 lg:h-11 group/pin cursor-pointer"
               style={{
                 left: `${imgX}%`,
                 top: `${imgY}%`,
                 transform: `translate(-50%, -50%) rotate(${midAngle}deg)`,
               }}
+              title={pin.name}
             >
               <Image
                 src={pin.image}
@@ -152,6 +153,15 @@ export function PinWheel({ targetSegment, isSpinning, onSpinComplete, autoPlay =
                 className="object-contain"
                 sizes="56px"
               />
+              {/* Tooltip */}
+              <div
+                className="absolute left-1/2 -bottom-8 -translate-x-1/2 opacity-0 group-hover/pin:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap"
+                style={{ transform: `translateX(-50%) rotate(${-midAngle}deg)` }}
+              >
+                <div className="bg-black/90 text-white text-xs px-2 py-1 rounded">
+                  {pin.name}
+                </div>
+              </div>
             </div>
           );
         })}

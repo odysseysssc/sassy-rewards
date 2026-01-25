@@ -16,6 +16,7 @@ export interface LeaderboardEntry {
   wallet?: string;
   username?: string;
   points: number;
+  accountId?: string;
 }
 
 async function dripFetch(endpoint: string, options?: RequestInit) {
@@ -35,7 +36,9 @@ async function dripFetch(endpoint: string, options?: RequestInit) {
   });
 
   if (!response.ok) {
-    throw new Error(`Drip API error: ${response.status} ${response.statusText}`);
+    const errorBody = await response.text();
+    console.error('Drip API error details:', response.status, errorBody);
+    throw new Error(`Drip API error: ${response.status} ${response.statusText} - ${errorBody}`);
   }
 
   return response.json();
@@ -50,11 +53,12 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
 
   const response = await dripFetch(`/realms/${realmId}/members/leaderboard?limit=50`);
 
-  return response.data?.map((member: { rank: number; wallet?: string; username?: string; displayName?: string; balance: number }) => ({
+  return response.data?.map((member: { rank: number; wallet?: string; username?: string; displayName?: string; balance: number; accountId?: string }) => ({
     rank: member.rank,
     wallet: member.wallet,
     username: member.displayName || member.username,
     points: member.balance,
+    accountId: member.accountId,
   })) || [];
 }
 
@@ -344,6 +348,31 @@ export async function getMemberByAccountId(accountId: string): Promise<DripMembe
     };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Update a member's display name in Drip
+ */
+export async function updateMemberDisplayName(
+  accountId: string,
+  displayName: string
+): Promise<boolean> {
+  const realmId = process.env.DRIP_REALM_ID;
+  if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
+
+  try {
+    // Try name field
+    await dripFetch(`/realms/${realmId}/members/${accountId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: displayName,
+      }),
+    });
+    return true;
+  } catch (error) {
+    console.error('Failed to update display name in Drip:', error);
+    return false;
   }
 }
 

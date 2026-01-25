@@ -1,0 +1,84 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin';
+import { createServerClient } from '@/lib/supabase';
+
+// Content type rewards mapping
+export const CONTENT_REWARDS = {
+  'photo': { label: 'Photo post', base: 25 },
+  'short_video': { label: 'Short video (<60s)', base: 150 },
+  'thread': { label: 'X thread / article', base: 100 },
+  'space': { label: 'X Space (hosting)', base: 100 },
+  'unboxing': { label: 'Unboxing / styling video', base: 300 },
+  'long_video': { label: 'Long-form video (10+ min)', base: 400 },
+} as const;
+
+// View multipliers
+export const VIEW_MULTIPLIERS = [
+  { min: 0, max: 999, multiplier: 1, label: 'Under 1k' },
+  { min: 1000, max: 4999, multiplier: 1.5, label: '1k - 5k' },
+  { min: 5000, max: 19999, multiplier: 2, label: '5k - 20k' },
+  { min: 20000, max: Infinity, multiplier: 2.5, label: '20k+' },
+];
+
+export function calculateReward(contentType: string, viewCount: number): number {
+  const reward = CONTENT_REWARDS[contentType as keyof typeof CONTENT_REWARDS];
+  if (!reward) return 0;
+
+  // X Spaces don't get view multipliers
+  if (contentType === 'space') {
+    return reward.base;
+  }
+
+  const multiplier = VIEW_MULTIPLIERS.find(m => viewCount >= m.min && viewCount <= m.max);
+  return Math.round(reward.base * (multiplier?.multiplier || 1));
+}
+
+// GET - Fetch all submissions for admin review
+export async function GET(request: NextRequest) {
+  const { isAdmin: authorized, error } = await requireAdmin();
+  if (!authorized) {
+    return NextResponse.json({ error }, { status: 401 });
+  }
+
+  try {
+    const supabase = createServerClient();
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status') || 'pending';
+    const type = searchParams.get('type') || 'all'; // 'general', 'shred', or 'all'
+
+    let query = supabase
+      .from('submissions')
+      .select(`
+        *,
+        users:user_id (
+          email,
+          display_name
+        )
+      `)
+      .order('submitted_at', { ascending: false });
+
+    if (status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    if (type !== 'all') {
+      query = query.eq('submission_type', type);
+    }
+
+    const { data, error: dbError } = await query.limit(100);
+
+    if (dbError) throw dbError;
+
+    return NextResponse.json({
+      submissions: data,
+      contentRewards: CONTENT_REWARDS,
+      viewMultipliers: VIEW_MULTIPLIERS,
+    });
+  } catch (error) {
+    console.error('Error fetching submissions:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch submissions' },
+      { status: 500 }
+    );
+  }
+}

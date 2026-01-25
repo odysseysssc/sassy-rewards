@@ -31,6 +31,9 @@ export interface Submission {
   review_note: string | null;
   submitted_at: string;
   reviewed_at: string | null;
+  submission_type: 'general' | 'shred'; // 'general' for content submissions, 'shred' for Shred the Feed
+  reward_type: string | null; // e.g., 'photo', 'short_video', 'unboxing', etc.
+  view_count: number | null;
 }
 
 export interface GritTransaction {
@@ -175,7 +178,8 @@ export async function createSubmission(
   platform: string,
   contentUrl: string,
   contentType: string,
-  description?: string
+  description?: string,
+  submissionType: 'general' | 'shred' = 'general'
 ): Promise<Submission> {
   const supabase = createServerClient();
   const { data, error } = await supabase
@@ -186,6 +190,7 @@ export async function createSubmission(
       content_url: contentUrl,
       content_type: contentType,
       description: description || null,
+      submission_type: submissionType,
     })
     .select()
     .single();
@@ -194,16 +199,51 @@ export async function createSubmission(
   return data;
 }
 
-export async function getUserSubmissions(userId: string): Promise<Submission[]> {
+export async function getUserSubmissions(
+  userId: string,
+  submissionType?: 'general' | 'shred'
+): Promise<Submission[]> {
   const supabase = createServerClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from('submissions')
     .select('*')
     .eq('user_id', userId)
     .order('submitted_at', { ascending: false });
 
+  if (submissionType) {
+    query = query.eq('submission_type', submissionType);
+  }
+
+  const { data, error } = await query;
+
   if (error) return [];
   return data || [];
+}
+
+export async function hasSubmittedToday(
+  userId: string,
+  submissionType: 'general' | 'shred' = 'general'
+): Promise<boolean> {
+  const supabase = createServerClient();
+
+  // Get start of today in UTC
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from('submissions')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('submission_type', submissionType)
+    .gte('submitted_at', today.toISOString())
+    .limit(1);
+
+  if (error) {
+    console.error('Error checking daily submission:', error);
+    return false; // Allow submission if check fails
+  }
+
+  return (data?.length ?? 0) > 0;
 }
 
 // Grit transactions functions

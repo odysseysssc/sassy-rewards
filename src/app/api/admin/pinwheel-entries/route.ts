@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getMemberByWallet } from '@/lib/drip';
+import { requireAdmin } from '@/lib/admin';
 
 export async function GET() {
+  const { isAdmin: authorized, error } = await requireAdmin();
+  if (!authorized) {
+    return NextResponse.json({ error }, { status: 401 });
+  }
+
   try {
     const supabase = createServerClient();
 

@@ -12,43 +12,47 @@ interface FAQItem {
 const faqs: FAQItem[] = [
   {
     question: 'What is GRIT?',
-    answer: 'GRIT is the points system for Shredding Sassy. You earn GRIT by purchasing products from our store and creating content featuring Shredding Sassy gear. The more you participate, the more GRIT you earn.',
+    answer: 'GRIT is the Shredding Sassy points system. Earn GRIT by shopping on our store and creating content about the brand. GRIT can be used to enter the daily Pin Wheel for enamel pins, and converts to $SHAKA during periodic conversion windows.',
   },
   {
     question: 'How do I earn GRIT?',
-    answer: 'There are two main ways to earn GRIT: 1) Shop at shreddingsassy.com and earn 10 GRIT for every $1 spent. 2) Create content featuring Shredding Sassy products, submit it for review, and earn GRIT when approved.',
+    answer: 'Two ways: 1) Shop at shreddingsassy.com — earn 10 GRIT per $1 spent (link your email in Profile to receive GRIT from purchases). 2) Create content — post about Shredding Sassy, tag @shreddingsassy, submit the link, and earn GRIT when approved.',
   },
   {
-    question: 'What can I do with GRIT?',
-    answer: 'GRIT unlocks rewards like the daily Pin Wheel spin where you can win collectible enamel pins. Periodically, we also open conversion windows where you can swap GRIT for $SHAKA, our brand coin.',
-  },
-  {
-    question: 'What is the Pin Wheel?',
-    answer: 'The Pin Wheel is a daily raffle where GRIT holders can spend 10 GRIT to enter for a chance to win exclusive Shredding Sassy enamel pins. The draw happens every day at 8pm UTC.',
-  },
-  {
-    question: 'What is SHAKA?',
-    answer: 'SHAKA is the Shredding Sassy brand coin on the Base blockchain. During conversion windows, you can swap your GRIT for $SHAKA tokens. SHAKA represents ownership in the Shredding Sassy community.',
+    question: 'How much GRIT do I earn per content submission?',
+    answer: 'Base rewards vary by content type: Photo posts (25), Short videos under 60s (150), X threads or articles (100), Hosting X Spaces (100), Unboxing or styling videos (300), Long-form videos 3+ minutes (400). These base amounts are then multiplied based on views: under 1k (1x), 1k-5k (1.5x), 5k-20k (2x), 20k+ (2.5x). View multipliers apply to all content except X Spaces.',
   },
   {
     question: 'What content should I submit?',
-    answer: 'We reward two types of content: 1) Product content — lifestyle photos, unboxing videos, reviews featuring Shredding Sassy gear. 2) Talking about us — X threads, Spaces, articles, or videos about Shredding Sassy in web3, NFTs, or crypto. If you are featuring our gear or spreading the word, we want to see it.',
+    answer: 'We want content about Shredding Sassy — wearing the gear, unboxing pickups, sharing the story. This includes lifestyle photos, videos, X threads, hosting Spaces, articles, and reviews. Tag @shreddingsassy and make sure your content is public. The more people see it, the more you earn.',
   },
   {
     question: 'What is Shred the Feed?',
-    answer: 'Shred the Feed is our competition for action sports content. Skating, surfing, snowboarding — show us your shred. Shredding Sassy gear is not required, but you will earn bonus points if our gear is visible in your clip.',
+    answer: 'Shred the Feed is our action sports content competition — skating, surfing, snowboarding, BMX, skiing. Show us your shred. Shredding Sassy gear is not required, but visible gear earns bonus points.',
+  },
+  {
+    question: 'What can I do with GRIT?',
+    answer: 'Enter the daily Pin Wheel (10 GRIT per entry) for a chance to win collectible enamel pins. During periodic conversion windows, you can also swap GRIT for $SHAKA tokens.',
+  },
+  {
+    question: 'What is the Pin Wheel?',
+    answer: 'A daily raffle where you spend 10 GRIT to enter. Every day at 8pm UTC, the wheel spins and a winner is picked. Winners are notified in Discord and receive an exclusive enamel pin shipped to their address.',
+  },
+  {
+    question: 'What is $SHAKA?',
+    answer: '$SHAKA is the Shredding Sassy token on Base blockchain. During conversion windows, you can swap your GRIT for $SHAKA. It represents ownership in the Shredding Sassy community.',
   },
   {
     question: 'How long does content review take?',
-    answer: 'We review all submissions within 48-72 hours. You will be notified when your submission is approved or if we need any additional information.',
+    answer: 'We review all submissions within 48-72 hours. You can submit one piece of content per day.',
   },
   {
-    question: 'How do I connect my wallet?',
-    answer: 'Go to your Profile page and click "Connect" next to the Wallet section. You can connect any Ethereum-compatible wallet like MetaMask or Rainbow.',
+    question: 'How do I connect my accounts?',
+    answer: 'Go to your Profile page to connect your wallet, Discord, and email. Connecting your email is important if you shop on our store — it ensures you receive GRIT from purchases.',
   },
   {
-    question: 'How do I get my enamel pin if I win?',
-    answer: 'Make sure your shipping address is saved in your Profile. When you win a Pin Wheel spin, we will ship your enamel pin to the address on file.',
+    question: 'How do I get my pin if I win?',
+    answer: 'Make sure your shipping address is saved in your Profile before entering the Pin Wheel. When you win, we ship your enamel pin to the address on file.',
   },
 ];
 

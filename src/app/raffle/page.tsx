@@ -233,7 +233,8 @@ export default function RafflePage() {
           </h1>
           <p className="text-white/60 text-lg md:text-xl max-w-3xl mx-auto">
             Enter daily for your chance to win one of our collectible enamel pins. 10 Grit per entry.
-            At 8pm UTC the wheel will spin and a winner will be picked. Winners are notified in Discord!
+            At 8pm UTC the wheel will spin and a winner will be picked. Winners are notified in Discord and shown below.
+            Make sure your shipping address is saved in your Profile!
           </p>
         </div>
 
@@ -263,7 +264,17 @@ export default function RafflePage() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
           {/* Wheel Section - takes 3 columns */}
           <div className="lg:col-span-3 card-premium rounded-xl p-8">
-            <h2 className="text-xl font-bold text-white mb-6 text-center">The Wheel</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white">The Wheel</h2>
+              <a
+                href="https://www.shreddingsassy.com/collections/collectible-pins"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold text-sm hover:underline"
+              >
+                Shop All Pins →
+              </a>
+            </div>
             <PinWheel
               isSpinning={isSpinning}
               targetSegment={targetSegment}

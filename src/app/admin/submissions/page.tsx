@@ -1,0 +1,804 @@
+'use client';
+
+import { useSession } from 'next-auth/react';
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
+
+interface Submission {
+  id: string;
+  user_id: string;
+  platform: string;
+  content_url: string;
+  content_type: string;
+  submission_type: 'general' | 'shred';
+  status: 'pending' | 'approved' | 'rejected';
+  grit_awarded: number;
+  reward_type: string | null;
+  view_count: number | null;
+  review_note: string | null;
+  submitted_at: string;
+  reviewed_at: string | null;
+  users: {
+    email: string;
+    display_name: string | null;
+  } | null;
+}
+
+interface ContentReward {
+  label: string;
+  base: number;
+}
+
+interface ViewMultiplier {
+  min: number;
+  max: number;
+  multiplier: number;
+  label: string;
+}
+
+interface PinWheelEntry {
+  id: string;
+  wallet_address: string;
+  created_at: string;
+  member_name: string | null;
+}
+
+interface PinWheelWinner {
+  id: string;
+  wallet_address: string;
+  date_won: string;
+  prize: string;
+  member_name: string | null;
+  shipped: boolean;
+  profile: {
+    display_name?: string;
+    shipping_address?: string;
+  } | null;
+}
+
+const ADMIN_EMAILS = ['josh@shreddingsassy.com', 'admin@shreddingsassy.com', 'josh@sassy.com'];
+const ADMIN_WALLETS = ['0xa1922c47aa67c41b1c1e877e9919f5ef29c99373'];
+
+// Helper to truncate email for display
+function truncateEmail(email: string): string {
+  if (!email) return '';
+  const [local, domain] = email.split('@');
+  if (local.length <= 6) return email;
+  return `${local.slice(0, 6)}...@${domain}`;
+}
+
+// Helper to truncate wallet for display
+function truncateWallet(wallet: string): string {
+  if (!wallet) return '';
+  return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
+}
+
+// Content embed component for previewing submissions
+function ContentEmbed({ url, platform }: { url: string; platform: string }) {
+  const [twitterLoaded, setTwitterLoaded] = useState(false);
+
+  // Extract IDs from URLs
+  const getYouTubeId = (urlStr: string) => {
+    const match = urlStr.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+    return match?.[1];
+  };
+
+  const getTweetId = (urlStr: string) => {
+    const match = urlStr.match(/(?:twitter\.com|x\.com)\/\w+\/status\/(\d+)/);
+    return match?.[1];
+  };
+
+  const getTikTokId = (urlStr: string) => {
+    const match = urlStr.match(/tiktok\.com\/@[\w.-]+\/video\/(\d+)/);
+    return match?.[1];
+  };
+
+  // Load Twitter widget script
+  useEffect(() => {
+    if (platform === 'twitter' && getTweetId(url)) {
+      // Check if script already exists
+      if (!(window as Window & { twttr?: { widgets?: { load?: () => void } } }).twttr) {
+        const script = document.createElement('script');
+        script.src = 'https://platform.twitter.com/widgets.js';
+        script.async = true;
+        script.onload = () => setTwitterLoaded(true);
+        document.body.appendChild(script);
+      } else {
+        // Script exists, just reload widgets
+        (window as Window & { twttr?: { widgets?: { load?: () => void } } }).twttr?.widgets?.load?.();
+        setTwitterLoaded(true);
+      }
+    }
+  }, [platform, url]);
+
+  // YouTube embed
+  if (platform === 'youtube') {
+    const videoId = getYouTubeId(url);
+    if (videoId) {
+      return (
+        <iframe
+          src={`https://www.youtube.com/embed/${videoId}`}
+          className="w-full aspect-video"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      );
+    }
+  }
+
+  // Twitter/X embed
+  if (platform === 'twitter') {
+    const tweetId = getTweetId(url);
+    if (tweetId) {
+      return (
+        <div className="p-4 min-h-[200px]">
+          {!twitterLoaded && (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+            </div>
+          )}
+          <blockquote className="twitter-tweet" data-theme="dark" data-conversation="none">
+            <a href={url}>View on X</a>
+          </blockquote>
+        </div>
+      );
+    }
+  }
+
+  // TikTok embed
+  if (platform === 'tiktok') {
+    const videoId = getTikTokId(url);
+    if (videoId) {
+      return (
+        <iframe
+          src={`https://www.tiktok.com/embed/v2/${videoId}`}
+          className="w-full min-h-[500px]"
+          allowFullScreen
+        />
+      );
+    }
+  }
+
+  // Instagram - can't easily embed, show link
+  if (platform === 'instagram') {
+    return (
+      <div className="p-6 text-center">
+        <p className="text-white/50 text-sm mb-3">Instagram embeds require login. Open externally to view.</p>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-primary inline-block px-4 py-2 rounded-lg text-sm"
+        >
+          View on Instagram
+        </a>
+      </div>
+    );
+  }
+
+  // Fallback - show link
+  return (
+    <div className="p-6 text-center">
+      <p className="text-white/50 text-sm mb-3">Preview not available for this platform.</p>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="btn-primary inline-block px-4 py-2 rounded-lg text-sm"
+      >
+        Open Link
+      </a>
+    </div>
+  );
+}
+
+export default function AdminSubmissions() {
+  const router = useRouter();
+  const { data: session, status: sessionStatus } = useSession();
+
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [contentRewards, setContentRewards] = useState<Record<string, ContentReward>>({});
+  const [viewMultipliers, setViewMultipliers] = useState<ViewMultiplier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState<'submissions' | 'pinwheel'>('submissions');
+  const [activeTab, setActiveTab] = useState<'general' | 'shred'>('general');
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+
+  // Pin Wheel state
+  const [pinWheelTab, setPinWheelTab] = useState<'entries' | 'winners'>('entries');
+  const [pinWheelEntries, setPinWheelEntries] = useState<PinWheelEntry[]>([]);
+  const [pinWheelWinners, setPinWheelWinners] = useState<PinWheelWinner[]>([]);
+  const [pinWheelLoading, setPinWheelLoading] = useState(false);
+
+  // Review modal state
+  const [reviewingSubmission, setReviewingSubmission] = useState<Submission | null>(null);
+  const [selectedRewardType, setSelectedRewardType] = useState('');
+  const [viewCount, setViewCount] = useState('');
+  const [calculatedGrit, setCalculatedGrit] = useState(0);
+  const [reviewNote, setReviewNote] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+
+  // Check if user is admin by email or wallet
+  const userEmail = session?.user?.email?.toLowerCase();
+  const userWallet = session?.user?.wallet?.toLowerCase();
+  const isAdmin = (userEmail && ADMIN_EMAILS.includes(userEmail)) ||
+                  (userWallet && ADMIN_WALLETS.includes(userWallet));
+
+  const fetchSubmissions = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/submissions?status=${statusFilter}&type=${activeTab}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSubmissions(data.submissions || []);
+        setContentRewards(data.contentRewards || {});
+        setViewMultipliers(data.viewMultipliers || []);
+      } else if (res.status === 401) {
+        router.push('/');
+      }
+    } catch (error) {
+      console.error('Error fetching submissions:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, activeTab, router]);
+
+  const fetchPinWheelData = useCallback(async () => {
+    setPinWheelLoading(true);
+    try {
+      const [entriesRes, winnersRes] = await Promise.all([
+        fetch('/api/admin/pinwheel-entries'),
+        fetch('/api/admin/pinwheel-winners'),
+      ]);
+
+      if (entriesRes.ok) {
+        const data = await entriesRes.json();
+        setPinWheelEntries(data.entries || []);
+      }
+      if (winnersRes.ok) {
+        const data = await winnersRes.json();
+        setPinWheelWinners(data.winners || []);
+      }
+    } catch (error) {
+      console.error('Error fetching pin wheel data:', error);
+    } finally {
+      setPinWheelLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (sessionStatus === 'loading') return;
+    if (!session?.user || !isAdmin) {
+      router.push('/');
+      return;
+    }
+    if (activeSection === 'submissions') {
+      fetchSubmissions();
+    } else {
+      fetchPinWheelData();
+    }
+  }, [session, sessionStatus, isAdmin, router, fetchSubmissions, fetchPinWheelData, activeSection]);
+
+  // Calculate GRIT when reward type or view count changes
+  useEffect(() => {
+    if (!selectedRewardType || !contentRewards[selectedRewardType]) {
+      setCalculatedGrit(0);
+      return;
+    }
+
+    const base = contentRewards[selectedRewardType].base;
+    const views = parseInt(viewCount) || 0;
+
+    // X Spaces don't get multipliers
+    if (selectedRewardType === 'space') {
+      setCalculatedGrit(base);
+      return;
+    }
+
+    const multiplier = viewMultipliers.find(m => views >= m.min && views <= m.max);
+    setCalculatedGrit(Math.round(base * (multiplier?.multiplier || 1)));
+  }, [selectedRewardType, viewCount, contentRewards, viewMultipliers]);
+
+  const handleReview = (submission: Submission) => {
+    setReviewingSubmission(submission);
+    setSelectedRewardType(submission.reward_type || '');
+    setViewCount(submission.view_count?.toString() || '');
+    setReviewNote(submission.review_note || '');
+    setCalculatedGrit(submission.grit_awarded || 0);
+  };
+
+  const handleApprove = async () => {
+    if (!reviewingSubmission) return;
+    setSubmittingReview(true);
+
+    try {
+      const res = await fetch(`/api/admin/submissions/${reviewingSubmission.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'approved',
+          gritAwarded: calculatedGrit,
+          rewardType: selectedRewardType,
+          viewCount: parseInt(viewCount) || null,
+          reviewNote,
+        }),
+      });
+
+      if (res.ok) {
+        setReviewingSubmission(null);
+        fetchSubmissions();
+      }
+    } catch (error) {
+      console.error('Error approving submission:', error);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!reviewingSubmission) return;
+    setSubmittingReview(true);
+
+    try {
+      const res = await fetch(`/api/admin/submissions/${reviewingSubmission.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'rejected',
+          reviewNote,
+        }),
+      });
+
+      if (res.ok) {
+        setReviewingSubmission(null);
+        fetchSubmissions();
+      }
+    } catch (error) {
+      console.error('Error rejecting submission:', error);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  if (sessionStatus === 'loading' || loading) {
+    return (
+      <main className="min-h-screen">
+        <Header />
+        <div className="flex items-center justify-center py-32">
+          <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+        </div>
+        <Footer />
+      </main>
+    );
+  }
+
+  if (!isAdmin) {
+    return null;
+  }
+
+  return (
+    <main className="min-h-screen">
+      <Header />
+
+      <section className="max-w-7xl mx-auto px-4 md:px-6 py-8">
+        <h1 className="text-3xl font-bold text-white mb-6">Admin Dashboard</h1>
+
+        {/* Main Section Tabs */}
+        <div className="flex gap-2 mb-6 border-b border-white/10 pb-4">
+          <button
+            onClick={() => setActiveSection('submissions')}
+            className={`px-5 py-2.5 rounded-lg font-semibold transition-colors ${
+              activeSection === 'submissions'
+                ? 'bg-gold text-purple-darker'
+                : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+          >
+            Submissions
+          </button>
+          <button
+            onClick={() => setActiveSection('pinwheel')}
+            className={`px-5 py-2.5 rounded-lg font-semibold transition-colors ${
+              activeSection === 'pinwheel'
+                ? 'bg-gold text-purple-darker'
+                : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+          >
+            Pin Wheel
+          </button>
+        </div>
+
+        {/* Submissions Section */}
+        {activeSection === 'submissions' && (
+          <>
+        {/* Sub Tabs */}
+        <div className="flex gap-4 mb-6">
+          <button
+            onClick={() => setActiveTab('general')}
+            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              activeTab === 'general'
+                ? 'bg-blue-500 text-white'
+                : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+          >
+            General Content
+          </button>
+          <button
+            onClick={() => setActiveTab('shred')}
+            className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+              activeTab === 'shred'
+                ? 'bg-purple-500 text-white'
+                : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+          >
+            Shred the Feed
+          </button>
+        </div>
+
+        {/* Status Filter */}
+        <div className="flex gap-2 mb-6">
+          {(['pending', 'approved', 'rejected', 'all'] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                statusFilter === status
+                  ? 'bg-white/20 text-white'
+                  : 'text-white/50 hover:text-white'
+              }`}
+            >
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Submissions List */}
+        <div className="card-premium rounded-xl overflow-hidden">
+          {submissions.length === 0 ? (
+            <div className="p-8 text-center text-white/50">
+              No {statusFilter === 'all' ? '' : statusFilter} submissions found.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px]">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Date</th>
+                  <th className="text-left text-white/50 text-sm font-medium px-4 py-3">User</th>
+                  <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Platform</th>
+                  <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Content</th>
+                  <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Status</th>
+                  <th className="text-left text-white/50 text-sm font-medium px-4 py-3">GRIT</th>
+                  <th className="text-right text-white/50 text-sm font-medium px-4 py-3">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {submissions.map((sub) => (
+                  <tr key={sub.id} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="text-white/70 text-sm px-4 py-3">
+                      {formatDate(sub.submitted_at)}
+                    </td>
+                    <td className="text-white text-sm px-4 py-3">
+                      {sub.users?.display_name || (
+                        sub.users?.email ? truncateEmail(sub.users.email) : 'Unknown'
+                      )}
+                    </td>
+                    <td className="text-white/70 text-sm px-4 py-3 capitalize">
+                      {sub.platform}
+                    </td>
+                    <td className="text-sm px-4 py-3">
+                      <a
+                        href={sub.content_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gold hover:underline truncate block max-w-[300px]"
+                      >
+                        {sub.content_url}
+                      </a>
+                    </td>
+                    <td className="text-sm px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        sub.status === 'approved' ? 'bg-green-500/20 text-green-400' :
+                        sub.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                        'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {sub.status}
+                      </span>
+                    </td>
+                    <td className="text-white text-sm px-4 py-3 font-medium">
+                      {sub.grit_awarded > 0 ? `+${sub.grit_awarded}` : '-'}
+                    </td>
+                    <td className="text-right px-4 py-3">
+                      <button
+                        onClick={() => handleReview(sub)}
+                        className="text-gold text-sm hover:underline"
+                      >
+                        Review
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          )}
+        </div>
+          </>
+        )}
+
+        {/* Pin Wheel Section */}
+        {activeSection === 'pinwheel' && (
+          <>
+            {/* Sub Tabs */}
+            <div className="flex gap-4 mb-6">
+              <button
+                onClick={() => setPinWheelTab('entries')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                  pinWheelTab === 'entries'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                Today&apos;s Entries ({pinWheelEntries.length})
+              </button>
+              <button
+                onClick={() => setPinWheelTab('winners')}
+                className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
+                  pinWheelTab === 'winners'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-white/10 text-white hover:bg-white/20'
+                }`}
+              >
+                Winners ({pinWheelWinners.length})
+              </button>
+            </div>
+
+            {pinWheelLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-10 h-10 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+              </div>
+            ) : pinWheelTab === 'entries' ? (
+              /* Entries Table */
+              <div className="card-premium rounded-xl overflow-hidden">
+                {pinWheelEntries.length === 0 ? (
+                  <div className="p-8 text-center text-white/50">
+                    No entries yet today.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[500px]">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Time</th>
+                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">User</th>
+                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Wallet</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pinWheelEntries.map((entry) => (
+                          <tr key={entry.id} className="border-b border-white/5 hover:bg-white/5">
+                            <td className="text-white/70 text-sm px-4 py-3">
+                              {new Date(entry.created_at).toLocaleTimeString()}
+                            </td>
+                            <td className="text-white text-sm px-4 py-3">
+                              {entry.member_name || '-'}
+                            </td>
+                            <td className="text-white/50 text-sm px-4 py-3 font-mono">
+                              {truncateWallet(entry.wallet_address)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Winners Table */
+              <div className="card-premium rounded-xl overflow-hidden">
+                {pinWheelWinners.length === 0 ? (
+                  <div className="p-8 text-center text-white/50">
+                    No winners yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[700px]">
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Date</th>
+                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">User</th>
+                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Wallet</th>
+                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Prize</th>
+                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Shipped</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pinWheelWinners.map((winner) => (
+                          <tr key={winner.id} className="border-b border-white/5 hover:bg-white/5">
+                            <td className="text-white/70 text-sm px-4 py-3">
+                              {new Date(winner.date_won).toLocaleDateString()}
+                            </td>
+                            <td className="text-white text-sm px-4 py-3">
+                              {winner.member_name || winner.profile?.display_name || '-'}
+                            </td>
+                            <td className="text-white/50 text-sm px-4 py-3 font-mono">
+                              {truncateWallet(winner.wallet_address)}
+                            </td>
+                            <td className="text-gold text-sm px-4 py-3 font-medium">
+                              {winner.prize}
+                            </td>
+                            <td className="text-sm px-4 py-3">
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                winner.shipped
+                                  ? 'bg-green-500/20 text-green-400'
+                                  : 'bg-yellow-500/20 text-yellow-400'
+                              }`}>
+                                {winner.shipped ? 'Shipped' : 'Pending'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      {/* Review Modal */}
+      {reviewingSubmission && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="card-premium rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-white mb-4">Review Submission</h2>
+
+            {/* Content Embed */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-white/50 text-sm">Content Preview</label>
+                <a
+                  href={reviewingSubmission.content_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gold text-xs hover:underline"
+                >
+                  Open in new tab →
+                </a>
+              </div>
+              <div className="bg-black/30 rounded-lg overflow-hidden">
+                <ContentEmbed url={reviewingSubmission.content_url} platform={reviewingSubmission.platform} />
+              </div>
+            </div>
+
+            {/* User */}
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">Submitted by</label>
+              <p className="text-white">
+                {reviewingSubmission.users?.display_name || (
+                  reviewingSubmission.users?.email ? truncateEmail(reviewingSubmission.users.email) : 'Unknown'
+                )}
+              </p>
+              {reviewingSubmission.users?.display_name && reviewingSubmission.users?.email && (
+                <p className="text-white/40 text-xs">{truncateEmail(reviewingSubmission.users.email)}</p>
+              )}
+            </div>
+
+            {/* Platform */}
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">Platform (auto-detected)</label>
+              <p className="text-white capitalize">{reviewingSubmission.platform}</p>
+            </div>
+
+            {/* Reward Type Selection - Only for general submissions */}
+            {activeTab === 'general' && (
+              <>
+                <div className="mb-4">
+                  <label className="text-white/50 text-sm block mb-2">Content Type</label>
+                  <select
+                    value={selectedRewardType}
+                    onChange={(e) => setSelectedRewardType(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold/50"
+                  >
+                    <option value="">Select type...</option>
+                    {Object.entries(contentRewards).map(([key, reward]) => (
+                      <option key={key} value={key}>
+                        {reward.label} ({reward.base} base)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* View Count */}
+                <div className="mb-4">
+                  <label className="text-white/50 text-sm block mb-2">View Count</label>
+                  <input
+                    type="number"
+                    value={viewCount}
+                    onChange={(e) => setViewCount(e.target.value)}
+                    placeholder="Enter view count"
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+                  />
+                  <p className="text-white/30 text-xs mt-1">
+                    Multipliers: 1k-5k (1.5x), 5k-20k (2x), 20k+ (2.5x)
+                  </p>
+                </div>
+
+                {/* Calculated GRIT */}
+                <div className="mb-4 p-4 bg-gold/10 rounded-lg">
+                  <label className="text-white/50 text-sm block mb-1">Calculated GRIT</label>
+                  <p className="text-3xl font-bold text-gold">{calculatedGrit}</p>
+                </div>
+              </>
+            )}
+
+            {/* Shred the Feed - manual GRIT entry */}
+            {activeTab === 'shred' && (
+              <div className="mb-4">
+                <label className="text-white/50 text-sm block mb-2">GRIT to Award</label>
+                <input
+                  type="number"
+                  value={calculatedGrit}
+                  onChange={(e) => setCalculatedGrit(parseInt(e.target.value) || 0)}
+                  placeholder="Enter GRIT amount"
+                  className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+                />
+                <p className="text-white/30 text-xs mt-1">
+                  10 for submission bonus, 100 for making the cut, 500 for monthly winner
+                </p>
+              </div>
+            )}
+
+            {/* Review Note */}
+            <div className="mb-6">
+              <label className="text-white/50 text-sm block mb-2">Review Note (optional)</label>
+              <textarea
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+                placeholder="Add a note..."
+                rows={2}
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-gold/50 resize-none"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleApprove}
+                disabled={submittingReview || (activeTab === 'general' && !selectedRewardType)}
+                className="flex-1 bg-green-600 hover:bg-green-500 text-white px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+              >
+                {submittingReview ? '...' : 'Approve'}
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={submittingReview}
+                className="flex-1 bg-red-600 hover:bg-red-500 text-white px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+              >
+                {submittingReview ? '...' : 'Reject'}
+              </button>
+              <button
+                onClick={() => setReviewingSubmission(null)}
+                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Footer />
+    </main>
+  );
+}
