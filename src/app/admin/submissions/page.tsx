@@ -59,7 +59,7 @@ interface PinWheelWinner {
 }
 
 const ADMIN_EMAILS = ['josh@shreddingsassy.com', 'admin@shreddingsassy.com', 'josh@sassy.com'];
-const ADMIN_WALLETS = ['0xa1922c47aa67c41b1c1e877e9919f5ef29c99373'];
+const ADMIN_WALLETS = ['0xa1922c47aa67c41b1c1e877e9919f5ef29c99373', '0x659a364365d5fb3f18f2c7b9e038d276ae255375'];
 
 // Helper to truncate email for display
 function truncateEmail(email: string): string {

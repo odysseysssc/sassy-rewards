@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 
+// Get the draw date for the current entry window
+function getDrawDate(): string {
+  const now = new Date();
+  const hour = now.getUTCHours();
+
+  if (hour >= 20) {
+    const tomorrow = new Date(now);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  }
+
+  return now.toISOString().split('T')[0];
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const wallet = searchParams.get('wallet');
@@ -14,13 +28,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const supabase = createServerClient();
-    const today = new Date().toISOString().split('T')[0];
+    const drawDate = getDrawDate();
 
     const { data: entry, error } = await supabase
       .from('pinwheel_entries')
       .select('*')
       .eq('wallet_address', wallet.toLowerCase())
-      .eq('entry_date', today)
+      .eq('entry_date', drawDate)
       .maybeSingle();
 
     if (error) {

@@ -1,46 +1,49 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
-import { supabase } from '@/lib/supabase';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Suspense } from 'react';
 
-export default function AuthCallback() {
+function AuthCallbackContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('Verifying...');
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        const token = searchParams.get('token');
+        const email = searchParams.get('email');
+
+        if (!token || !email) {
+          setError('Invalid login link. Please try again.');
+          return;
+        }
+
         setStatus('Verifying magic link...');
-        const { data, error: authError } = await supabase.auth.getSession();
 
-        if (authError) {
-          console.error('Supabase auth error:', authError);
-          setError('Authentication failed. Please try again.');
+        // Verify the token via API
+        const verifyRes = await fetch('/api/auth/verify-magic-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, email }),
+        });
+
+        if (!verifyRes.ok) {
+          const data = await verifyRes.json();
+          setError(data.error || 'Invalid or expired link. Please try again.');
           return;
         }
 
-        if (!data.session) {
-          setError('No session found. Please try signing in again.');
-          return;
-        }
-
-        const { user } = data.session;
-        if (!user.email) {
-          setError('No email found in session.');
-          return;
-        }
-
-        setStatus('Creating your account...');
+        setStatus('Creating your session...');
 
         // Sign in to NextAuth with email credentials
         const result = await signIn('email', {
-          email: user.email,
-          supabaseUserId: user.id,
+          email: email,
           redirect: false,
         });
 
@@ -58,7 +61,7 @@ export default function AuthCallback() {
     };
 
     handleCallback();
-  }, [router]);
+  }, [router, searchParams]);
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-4">
@@ -89,5 +92,17 @@ export default function AuthCallback() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function AuthCallback() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen flex flex-col items-center justify-center px-4">
+        <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+      </main>
+    }>
+      <AuthCallbackContent />
+    </Suspense>
   );
 }

@@ -1,16 +1,34 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 
+// Get the draw date for the current entry window
+// Before 8pm UTC: entries are for today's draw
+// After 8pm UTC: entries are for tomorrow's draw
+function getDrawDate(): string {
+  const now = new Date();
+  const hour = now.getUTCHours();
+
+  if (hour >= 20) {
+    // After 8pm UTC, entries are for tomorrow's draw
+    const tomorrow = new Date(now);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  }
+
+  // Before 8pm UTC, entries are for today's draw
+  return now.toISOString().split('T')[0];
+}
+
 export async function GET() {
   try {
     const supabase = createServerClient();
-    const today = new Date().toISOString().split('T')[0];
+    const drawDate = getDrawDate();
 
-    // Get today's entry count
+    // Get entry count for current draw window
     const { count, error } = await supabase
       .from('pinwheel_entries')
       .select('*', { count: 'exact', head: true })
-      .eq('entry_date', today);
+      .eq('entry_date', drawDate);
 
     if (error) {
       console.error('Supabase error:', error);
