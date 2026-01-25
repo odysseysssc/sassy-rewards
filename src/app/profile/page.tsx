@@ -105,7 +105,7 @@ function ProfileContent() {
   const emailCredential = connectedCredentials.find(c => c.type === 'email');
   const displayEmail = session?.user?.email || emailCredential?.identifier;
   const displayWallet = session?.user?.wallet || address;
-  const hasWalletConnected = !!displayWallet || connectedCredentials.some(c => c.type === 'wallet');
+  const hasWalletConnected = !!session?.user?.wallet || connectedCredentials.some(c => c.type === 'wallet');
   const hasDiscordConnected = !!session?.user?.discordId || connectedCredentials.some(c => c.type === 'discord');
   const hasEmailConnected = !!displayEmail;
 
