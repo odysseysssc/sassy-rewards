@@ -56,6 +56,7 @@ async function getUserCredentials(userId: string) {
 async function createUserWithCredential(type: string, identifier: string, dripAccountId?: string) {
   try {
     const supabase = createServerClient();
+    console.log('[createUser] Creating user with type:', type, 'dripId:', dripAccountId);
 
     // Create user
     const { data: user, error: userError } = await supabase
@@ -68,9 +69,10 @@ async function createUserWithCredential(type: string, identifier: string, dripAc
       .single();
 
     if (userError || !user) {
-      console.error('Error creating user:', userError);
+      console.error('[createUser] Error creating user:', userError);
       return null;
     }
+    console.log('[createUser] User created:', user.id);
 
     // Add credential
     const { error: credError } = await supabase
@@ -83,12 +85,14 @@ async function createUserWithCredential(type: string, identifier: string, dripAc
       });
 
     if (credError) {
-      console.error('Error adding credential:', credError);
+      console.error('[createUser] Error adding credential:', credError);
+    } else {
+      console.log('[createUser] Credential added successfully');
     }
 
     return user;
   } catch (error) {
-    console.error('createUserWithCredential error:', error);
+    console.error('[createUser] Exception:', error);
     return null;
   }
 }
@@ -189,26 +193,37 @@ export const authOptions: NextAuthOptions = {
         wallet: { label: 'Wallet Address', type: 'text' },
       },
       async authorize(credentials) {
+        console.log('[Wallet Auth] Starting with credentials:', credentials?.wallet?.slice(0, 10));
         if (!credentials?.wallet) return null;
 
         const wallet = credentials.wallet.toLowerCase();
 
         try {
           // Check if this wallet is already linked to a user
+          console.log('[Wallet Auth] Looking up user by credential...');
           let user = await findUserByCredential('wallet', wallet);
+          console.log('[Wallet Auth] Found user:', user?.id);
 
           if (!user) {
             // Try to find Drip account by wallet
+            console.log('[Wallet Auth] No user found, checking Drip...');
             const dripMember = await getMemberByWallet(wallet);
+            console.log('[Wallet Auth] Drip member:', dripMember?.id);
 
             // Create new user
+            console.log('[Wallet Auth] Creating new user...');
             user = await createUserWithCredential('wallet', wallet, dripMember?.id);
+            console.log('[Wallet Auth] Created user:', user?.id);
           }
 
-          if (!user) return null;
+          if (!user) {
+            console.log('[Wallet Auth] No user, returning null');
+            return null;
+          }
 
           // Get all linked credentials
           const creds = await getUserCredentials(user.id);
+          console.log('[Wallet Auth] Credentials:', creds);
 
           return {
             id: user.id,
@@ -219,7 +234,7 @@ export const authOptions: NextAuthOptions = {
             authType: 'wallet',
           };
         } catch (error) {
-          console.error('Wallet auth error:', error);
+          console.error('[Wallet Auth] Error:', error);
           return null;
         }
       },
