@@ -286,27 +286,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Convert to SHAKA */}
-          <Link href="/shaka" className="card-premium rounded-xl p-6 hover:border-gold/30 transition-all block">
-            <div className="flex items-start gap-4">
-              <div className="text-4xl">🔄</div>
-              <div>
-                <h3 className="text-white font-semibold text-lg mb-2">Convert to SHAKA</h3>
-                <p className="text-white/50 text-sm">
-                  Periodically we open conversion windows where you can swap GRIT for $SHAKA, our brand coin.
-                </p>
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        <div className="text-center mt-8">
-          <Link
-            href="/shaka"
-            className="text-gold hover:text-gold/80 font-semibold transition-colors"
-          >
-            Learn about SHAKA →
-          </Link>
         </div>
       </section>
 
