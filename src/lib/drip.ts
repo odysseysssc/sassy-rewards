@@ -46,12 +46,20 @@ async function dripFetch(endpoint: string, options?: RequestInit) {
 
 export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   const realmId = process.env.DRIP_REALM_ID;
+  const currencyId = process.env.DRIP_GRIT_CURRENCY_ID;
 
   if (!realmId) {
     throw new Error('DRIP_REALM_ID is not configured');
   }
 
-  const response = await dripFetch(`/realms/${realmId}/members/leaderboard?limit=100`);
+  // Include currencyId to filter by GRIT specifically
+  const url = currencyId
+    ? `/realms/${realmId}/members/leaderboard?limit=200&currencyId=${currencyId}`
+    : `/realms/${realmId}/members/leaderboard?limit=200`;
+
+  const response = await dripFetch(url);
+
+  console.log('[Leaderboard] Total entries returned:', response.data?.length);
 
   return response.data?.map((member: { rank: number; wallet?: string; username?: string; displayName?: string; balance: number; accountId?: string }) => ({
     rank: member.rank,
@@ -333,7 +341,11 @@ export async function getMemberByAccountId(accountId: string): Promise<DripMembe
 
   try {
     // The direct member endpoint doesn't exist, so search the leaderboard
-    const response = await dripFetch(`/realms/${realmId}/members/leaderboard?limit=100`);
+    const currencyId = process.env.DRIP_GRIT_CURRENCY_ID;
+    const url = currencyId
+      ? `/realms/${realmId}/members/leaderboard?limit=200&currencyId=${currencyId}`
+      : `/realms/${realmId}/members/leaderboard?limit=200`;
+    const response = await dripFetch(url);
     const members = response.data || [];
 
     const member = members.find((m: { accountId: string }) => m.accountId === accountId);
