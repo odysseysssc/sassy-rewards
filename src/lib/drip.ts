@@ -219,26 +219,31 @@ export function truncateWallet(wallet: string): string {
   return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
 }
 
-// Email credential functions for the new auth flow
+// Ghost credential types
+export type CredentialType = 'email' | 'wallet' | 'discord-id' | 'twitter-id';
 
 export interface DripCredential {
   id: string;
-  accountId: string;
+  accountId?: string;
   format: string;
   provider?: string;
   publicIdentifier: string;
+  balances?: Array<{ currencyId: string; balance: number }>;
 }
 
 /**
- * Find an existing email credential in Drip
+ * Find an existing credential in Drip (ghost or linked)
  */
-export async function findCredentialByEmail(email: string): Promise<DripCredential | null> {
+export async function findCredential(
+  type: CredentialType,
+  value: string
+): Promise<DripCredential | null> {
   const realmId = process.env.DRIP_REALM_ID;
   if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
 
   try {
     const response = await dripFetch(
-      `/realms/${realmId}/credentials/find?type=email&value=${encodeURIComponent(email.toLowerCase())}`
+      `/realms/${realmId}/credentials/find?type=${type}&value=${encodeURIComponent(value.toLowerCase())}`
     );
     return response.data || response;
   } catch {
@@ -247,12 +252,17 @@ export async function findCredentialByEmail(email: string): Promise<DripCredenti
   }
 }
 
+// Convenience wrapper for email
+export async function findCredentialByEmail(email: string): Promise<DripCredential | null> {
+  return findCredential('email', email);
+}
+
 /**
- * Create a new email credential (social type)
- * If accountId is provided, links immediately. Otherwise creates a "ghost" credential.
+ * Create a social credential (email, discord, twitter)
  */
-export async function createEmailCredential(
-  email: string,
+export async function createSocialCredential(
+  provider: string,
+  providerId: string,
   username?: string,
   accountId?: string
 ): Promise<DripCredential> {
@@ -262,10 +272,42 @@ export async function createEmailCredential(
   const response = await dripFetch(`/realms/${realmId}/credentials/social`, {
     method: 'POST',
     body: JSON.stringify({
-      provider: 'email',
-      providerId: email.toLowerCase(),
-      username: username || email.split('@')[0],
+      provider,
+      providerId: providerId.toLowerCase(),
+      username: username || providerId,
       ...(accountId && { accountId }),
+    }),
+  });
+
+  return response.data || response;
+}
+
+/**
+ * Create an email credential (ghost)
+ */
+export async function createEmailCredential(
+  email: string,
+  username?: string,
+  accountId?: string
+): Promise<DripCredential> {
+  return createSocialCredential('email', email, username || email.split('@')[0], accountId);
+}
+
+/**
+ * Create a wallet credential (ghost)
+ */
+export async function createWalletCredential(
+  address: string,
+  chain: string = 'ethereum'
+): Promise<DripCredential> {
+  const realmId = process.env.DRIP_REALM_ID;
+  if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
+
+  const response = await dripFetch(`/realms/${realmId}/credentials/wallet`, {
+    method: 'POST',
+    body: JSON.stringify({
+      address: address.toLowerCase(),
+      chain,
     }),
   });
 
@@ -277,19 +319,54 @@ export async function createEmailCredential(
  * This transfers any accumulated balance to the account
  */
 export async function linkCredentialToAccount(
-  email: string,
+  type: CredentialType,
+  value: string,
   accountId: string
 ): Promise<boolean> {
   const realmId = process.env.DRIP_REALM_ID;
   if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
 
   try {
-    await dripFetch(
-      `/realms/${realmId}/credentials/link?type=email&value=${encodeURIComponent(email.toLowerCase())}&accountId=${accountId}`,
+    const response = await dripFetch(
+      `/realms/${realmId}/credentials/link?type=${type}&value=${encodeURIComponent(value.toLowerCase())}&accountId=${accountId}`,
       { method: 'POST' }
     );
+    // 204 No Content means success
     return true;
-  } catch {
+  } catch (error) {
+    console.error(`Failed to link ${type} credential:`, error);
+    return false;
+  }
+}
+
+/**
+ * Update balance on a credential (ghost or linked)
+ */
+export async function updateCredentialBalance(
+  type: CredentialType,
+  value: string,
+  amount: number,
+  currencyId?: string
+): Promise<boolean> {
+  const realmId = process.env.DRIP_REALM_ID;
+  if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
+
+  try {
+    const body: { amount: number; realmPointId?: string } = { amount };
+    if (currencyId) {
+      body.realmPointId = currencyId;
+    }
+
+    await dripFetch(
+      `/realms/${realmId}/credentials/balance?type=${type}&value=${encodeURIComponent(value.toLowerCase())}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }
+    );
+    return true;
+  } catch (error) {
+    console.error(`Failed to update ${type} credential balance:`, error);
     return false;
   }
 }

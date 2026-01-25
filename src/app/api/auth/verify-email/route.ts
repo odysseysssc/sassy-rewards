@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
+import { linkCredentialToAccount, findCredential } from '@/lib/drip';
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token');
@@ -59,10 +60,28 @@ export async function GET(request: NextRequest) {
   }
 
   // Also update the users table email field
-  await supabase
+  const { data: user } = await supabase
     .from('users')
     .update({ email: verification.email })
-    .eq('id', verification.user_id);
+    .eq('id', verification.user_id)
+    .select('drip_account_id')
+    .single();
+
+  // Link email credential in Drip (transfers any accumulated GRIT from Shopify orders)
+  if (user?.drip_account_id) {
+    try {
+      // Check if there's a ghost credential with this email that has balance
+      const credential = await findCredential('email', verification.email);
+      if (credential && !credential.accountId) {
+        // Ghost credential exists - link it to transfer balance
+        await linkCredentialToAccount('email', verification.email, user.drip_account_id);
+        console.log(`Linked email credential ${verification.email} to Drip account ${user.drip_account_id}`);
+      }
+    } catch (error) {
+      // Don't fail the whole operation if Drip linking fails
+      console.error('Error linking email to Drip:', error);
+    }
+  }
 
   // Delete the verification record
   await supabase.from('email_verifications').delete().eq('id', verification.id);
