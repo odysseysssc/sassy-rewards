@@ -76,8 +76,8 @@ export default function RafflePage() {
         setGritBalance(data.member?.points ?? 0);
       }
 
-      // Check if already entered today - use wallet or accountId
-      const entryIdentifier = address?.toLowerCase() || accountId;
+      // Check if already entered today - prefer accountId over wallet
+      const entryIdentifier = accountId || address?.toLowerCase();
       if (entryIdentifier) {
         const entryRes = await fetch(`/api/raffle/check-entry?wallet=${entryIdentifier}`);
         if (entryRes.ok) {
@@ -132,10 +132,15 @@ export default function RafflePage() {
     setError(null);
 
     try {
+      // If user has an accountId (email/Discord login), use that exclusively
+      // Only use wallet address if no accountId (pure wallet login)
       const res = await fetch('/api/raffle/enter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wallet: address, accountId }),
+        body: JSON.stringify({
+          wallet: accountId ? undefined : address,
+          accountId
+        }),
       });
 
       const data = await res.json();
@@ -164,8 +169,8 @@ export default function RafflePage() {
     setError(null);
 
     try {
-      // Use wallet if available, otherwise use accountId as the identifier
-      const identifier = address?.toLowerCase() || accountId;
+      // Prefer accountId over wallet address
+      const identifier = accountId || address?.toLowerCase();
       const res = await fetch('/api/pinwheel/auto-entry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
