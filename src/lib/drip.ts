@@ -52,22 +52,40 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
     throw new Error('DRIP_REALM_ID is not configured');
   }
 
-  // Include currencyId to filter by GRIT specifically, use 'take' for limit
-  const url = currencyId
-    ? `/realms/${realmId}/members/leaderboard?take=200&currencyId=${currencyId}`
-    : `/realms/${realmId}/members/leaderboard?take=200`;
+  const allEntries: LeaderboardEntry[] = [];
+  let cursor: string | undefined;
+  let hasNextPage = true;
 
-  const response = await dripFetch(url);
+  // Paginate through all results
+  while (hasNextPage) {
+    const params = new URLSearchParams({ take: '50' });
+    if (currencyId) params.set('currencyId', currencyId);
+    if (cursor) params.set('after', cursor);
 
-  console.log('[Leaderboard] Total entries returned:', response.data?.length);
+    const url = `/realms/${realmId}/members/leaderboard?${params.toString()}`;
+    const response = await dripFetch(url);
 
-  return response.data?.map((member: { rank: number; wallet?: string; username?: string; displayName?: string; balance: number; accountId?: string }) => ({
-    rank: member.rank,
-    wallet: member.wallet,
-    username: member.displayName || member.username,
-    points: member.balance,
-    accountId: member.accountId,
-  })) || [];
+    const entries = response.data?.map((member: { rank: number; wallet?: string; username?: string; displayName?: string; balance: number; accountId?: string }) => ({
+      rank: member.rank,
+      wallet: member.wallet,
+      username: member.displayName || member.username,
+      points: member.balance,
+      accountId: member.accountId,
+    })) || [];
+
+    allEntries.push(...entries);
+
+    // Check pagination
+    hasNextPage = response.meta?.hasNextPage || false;
+    cursor = response.meta?.endCursor;
+
+    // Safety limit to prevent infinite loops
+    if (allEntries.length >= 500) break;
+  }
+
+  console.log('[Leaderboard] Total entries fetched:', allEntries.length);
+
+  return allEntries;
 }
 
 export async function getMemberByEmail(email: string): Promise<DripMember | null> {
