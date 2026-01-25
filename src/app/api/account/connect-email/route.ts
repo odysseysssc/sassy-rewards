@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const { error: emailError } = await resend.emails.send({
+    const { data: emailData, error: emailError } = await resend.emails.send({
       from: 'Shredding Sassy <noreply@shreddingsassy.com>',
       to: normalizedEmail,
       subject: 'Verify your email - Shredding Sassy Rewards',
@@ -107,6 +107,8 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    console.log('Email sent successfully:', emailData);
 
     return NextResponse.json({
       success: true,
