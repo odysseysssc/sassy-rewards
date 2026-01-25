@@ -286,6 +286,19 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Shaka */}
+          <div className="card-premium rounded-xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">🤙</div>
+              <div>
+                <h3 className="text-white font-semibold text-lg mb-2">Shaka</h3>
+                <p className="text-white/50 text-sm">
+                  Daily check-in to earn bonus GRIT. Coming soon.
+                </p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
