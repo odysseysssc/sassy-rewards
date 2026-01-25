@@ -286,14 +286,14 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Shaka */}
+          {/* Convert to SHAKA */}
           <div className="card-premium rounded-xl p-6">
             <div className="flex items-start gap-4">
-              <div className="text-4xl">🤙</div>
+              <div className="text-4xl">🔄</div>
               <div>
-                <h3 className="text-white font-semibold text-lg mb-2">Shaka</h3>
+                <h3 className="text-white font-semibold text-lg mb-2">Convert to SHAKA</h3>
                 <p className="text-white/50 text-sm">
-                  Daily check-in to earn bonus GRIT. Coming soon.
+                  Periodically we open conversion windows where you can swap GRIT for $SHAKA, our brand coin.
                 </p>
               </div>
             </div>
