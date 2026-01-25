@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
+import Image from 'next/image';
 
 // Action stills from previous competition entries
 // Replace these with actual image paths
@@ -111,14 +112,16 @@ export default function ShredTheFeed() {
         {/* Grid of tiled stills */}
         <div className="absolute inset-0 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1 opacity-[0.07]">
           {[...Array(24)].map((_, i) => (
-            <div
-              key={i}
-              className="aspect-square bg-cover bg-center"
-              style={{
-                backgroundImage: `url(${actionStills[i % actionStills.length].src})`,
-                backgroundColor: '#1a1625',
-              }}
-            />
+            <div key={i} className="aspect-square relative bg-[#1a1625]">
+              <Image
+                src={actionStills[i % actionStills.length].src}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 33vw, (max-width: 1024px) 25vw, 17vw"
+                priority={i < 6}
+              />
+            </div>
           ))}
         </div>
         {/* Dark overlay gradient */}
@@ -137,18 +140,17 @@ export default function ShredTheFeed() {
             <div className="absolute inset-x-0 -top-4 -mx-4 md:-mx-8">
               <div className="grid grid-cols-3 md:grid-cols-6 gap-2 opacity-50">
                 {actionStills.map((still, i) => (
-                  <div
-                    key={i}
-                    className="aspect-square rounded-lg overflow-hidden"
-                    style={{
-                      backgroundImage: `url(${still.src})`,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      backgroundColor: '#2d1f4e',
-                    }}
-                  >
+                  <div key={i} className="aspect-square rounded-lg overflow-hidden relative bg-[#2d1f4e]">
+                    <Image
+                      src={still.src}
+                      alt={still.alt}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 33vw, 17vw"
+                      priority
+                    />
                     {/* Gradient overlay for readability */}
-                    <div className="w-full h-full bg-gradient-to-t from-purple-darker via-purple-darker/50 to-purple-darker/30" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-purple-darker via-purple-darker/50 to-purple-darker/30" />
                   </div>
                 ))}
               </div>
@@ -347,24 +349,22 @@ export default function ShredTheFeed() {
 
         {/* Last Month's Highlights - Embedded Video */}
         <section className="max-w-4xl mx-auto px-4 md:px-6 py-8">
-          <div className="card-premium rounded-2xl p-6 md:p-8 border border-purple-500/20 bg-gradient-to-br from-purple-500/5 to-transparent">
-            <div className="flex items-center gap-2 mb-6">
-              <span className="text-2xl">🎬</span>
-              <h2 className="text-xl font-bold text-white">Last Month&apos;s Compilation</h2>
-            </div>
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <span className="text-2xl">🎬</span>
+            <h2 className="text-xl font-bold text-white">Last Month&apos;s Compilation</h2>
+          </div>
 
-            {/* Winners compilation video */}
-            <div className="relative aspect-square max-w-md mx-auto rounded-xl overflow-hidden bg-black/50">
-              <video
-                controls
-                playsInline
-                preload="metadata"
-                poster="/stills/shred-1.jpg"
-                className="w-full h-full object-cover"
-              >
-                <source src="/videos/shred-winners.mp4" type="video/mp4" />
-              </video>
-            </div>
+          {/* Winners compilation video */}
+          <div className="relative aspect-square max-w-md mx-auto rounded-xl overflow-hidden bg-black/50">
+            <video
+              controls
+              playsInline
+              preload="metadata"
+              poster="/stills/shred-1.jpg"
+              className="w-full h-full object-cover"
+            >
+              <source src="/videos/shred-winners.mp4" type="video/mp4" />
+            </video>
           </div>
         </section>
 
