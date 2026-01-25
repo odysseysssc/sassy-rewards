@@ -172,6 +172,36 @@ export async function findCredentialByIdentifier(
   return data;
 }
 
+export async function findUserByWallet(wallet: string): Promise<DbUser | null> {
+  const supabase = createServerClient();
+
+  // First check connected_credentials for this wallet
+  const { data: credential } = await supabase
+    .from('connected_credentials')
+    .select('user_id')
+    .eq('credential_type', 'wallet')
+    .eq('identifier', wallet.toLowerCase())
+    .single();
+
+  if (credential?.user_id) {
+    return findUserById(credential.user_id);
+  }
+
+  return null;
+}
+
+export async function getUserConnectedDiscord(userId: string): Promise<string | null> {
+  const supabase = createServerClient();
+  const { data } = await supabase
+    .from('connected_credentials')
+    .select('identifier')
+    .eq('user_id', userId)
+    .eq('credential_type', 'discord')
+    .single();
+
+  return data?.identifier || null;
+}
+
 // Submissions functions
 export async function createSubmission(
   userId: string,
