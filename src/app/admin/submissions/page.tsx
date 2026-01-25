@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -77,7 +77,8 @@ function truncateWallet(wallet: string): string {
 
 // Content embed component for previewing submissions
 function ContentEmbed({ url, platform }: { url: string; platform: string }) {
-  const [twitterLoaded, setTwitterLoaded] = useState(false);
+  const twitterRef = useRef<HTMLDivElement>(null);
+  const [twitterLoading, setTwitterLoading] = useState(true);
 
   // Extract IDs from URLs
   const getYouTubeId = (urlStr: string) => {
@@ -95,21 +96,58 @@ function ContentEmbed({ url, platform }: { url: string; platform: string }) {
     return match?.[1];
   };
 
-  // Load Twitter widget script
+  // Load and render Twitter embed
   useEffect(() => {
-    if (platform === 'twitter' && getTweetId(url)) {
-      // Check if script already exists
-      if (!(window as Window & { twttr?: { widgets?: { load?: () => void } } }).twttr) {
-        const script = document.createElement('script');
-        script.src = 'https://platform.twitter.com/widgets.js';
-        script.async = true;
-        script.onload = () => setTwitterLoaded(true);
-        document.body.appendChild(script);
-      } else {
-        // Script exists, just reload widgets
-        (window as Window & { twttr?: { widgets?: { load?: () => void } } }).twttr?.widgets?.load?.();
-        setTwitterLoaded(true);
-      }
+    if (platform !== 'twitter' || !twitterRef.current) return;
+
+    const tweetId = getTweetId(url);
+    if (!tweetId) return;
+
+    const container = twitterRef.current;
+
+    // Clear any previous content
+    container.innerHTML = '';
+    setTwitterLoading(true);
+
+    // Type for Twitter widgets
+    type TwitterWidgets = {
+      widgets: {
+        createTweet: (
+          tweetId: string,
+          container: HTMLElement,
+          options?: Record<string, unknown>
+        ) => Promise<HTMLElement | undefined>;
+      };
+    };
+
+    const renderTweet = (twttr: TwitterWidgets) => {
+      twttr.widgets.createTweet(tweetId, container, {
+        theme: 'dark',
+        conversation: 'none',
+        width: 450,
+      }).then(() => {
+        setTwitterLoading(false);
+      }).catch(() => {
+        setTwitterLoading(false);
+        container.innerHTML = '<p class="text-white/50 text-sm">Failed to load tweet</p>';
+      });
+    };
+
+    // Check if Twitter script is already loaded
+    const win = window as Window & { twttr?: TwitterWidgets };
+    if (win.twttr?.widgets) {
+      renderTweet(win.twttr);
+    } else {
+      // Load the script
+      const script = document.createElement('script');
+      script.src = 'https://platform.twitter.com/widgets.js';
+      script.async = true;
+      script.onload = () => {
+        if (win.twttr?.widgets) {
+          renderTweet(win.twttr);
+        }
+      };
+      document.body.appendChild(script);
     }
   }, [platform, url]);
 
@@ -134,14 +172,12 @@ function ContentEmbed({ url, platform }: { url: string; platform: string }) {
     if (tweetId) {
       return (
         <div className="p-4 min-h-[200px]">
-          {!twitterLoaded && (
+          {twitterLoading && (
             <div className="flex items-center justify-center py-8">
               <div className="w-6 h-6 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
             </div>
           )}
-          <blockquote className="twitter-tweet" data-theme="dark" data-conversation="none">
-            <a href={url}>View on X</a>
-          </blockquote>
+          <div ref={twitterRef} />
         </div>
       );
     }
