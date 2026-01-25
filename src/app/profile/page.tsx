@@ -3,7 +3,7 @@
 import { useSession, signIn } from 'next-auth/react';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { truncateWallet } from '@/lib/drip';
@@ -44,6 +44,7 @@ interface ConnectedCredential {
 
 export default function Profile() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session, status: sessionStatus } = useSession();
   const { address, isConnected } = useAccount();
   const { connectors, connect } = useConnect();
@@ -192,6 +193,15 @@ export default function Profile() {
       fetchCredentials();
     }
   }, [session?.user?.id, fetchDisplayName, fetchAddress, fetchCredentials]);
+
+  // Refetch credentials when returning from Discord linking
+  useEffect(() => {
+    if (searchParams.get('discord_linked') === 'true') {
+      fetchCredentials();
+      // Clean up URL
+      router.replace('/profile', { scroll: false });
+    }
+  }, [searchParams, fetchCredentials, router]);
 
   // Handle email connection
   const handleConnectEmail = async (e: React.FormEvent) => {
