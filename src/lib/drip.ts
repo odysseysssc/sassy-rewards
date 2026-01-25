@@ -503,7 +503,7 @@ export async function getOrCreateDripAccount(email: string, username?: string): 
   // Create new credential (this creates an account too)
   try {
     const newCredential = await createEmailCredential(email, username);
-    return newCredential.accountId;
+    return newCredential.accountId || null;
   } catch {
     return null;
   }
