@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('connected_credentials')
-      .select('credential_type, identifier, display_name, verified, created_at')
+      .select('credential_type, identifier, verified, created_at')
       .eq('user_id', session.user.id);
 
     if (credentialType) {
