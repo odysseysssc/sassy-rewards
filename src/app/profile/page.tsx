@@ -42,6 +42,13 @@ interface ConnectedCredential {
   displayName?: string;
 }
 
+interface Prize {
+  id: string;
+  date_won: string;
+  pin_won: string;
+  shipped: boolean;
+}
+
 function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -53,6 +60,7 @@ function ProfileContent() {
   const [gritBalance, setGritBalance] = useState<number | null>(null);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [prizes, setPrizes] = useState<Prize[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Email connection state
@@ -389,12 +397,19 @@ function ProfileContent() {
           }
         }
 
-        // Fetch submissions if logged in with email
+        // Fetch submissions if logged in
         if (session?.user?.id) {
           const subRes = await fetch('/api/submissions');
           if (subRes.ok) {
             const subData = await subRes.json();
             setSubmissions(subData.submissions || []);
+          }
+
+          // Fetch prizes won
+          const prizesRes = await fetch('/api/account/prizes');
+          if (prizesRes.ok) {
+            const prizesData = await prizesRes.json();
+            setPrizes(prizesData.prizes || []);
           }
         }
       } catch (error) {
@@ -768,6 +783,38 @@ function ProfileContent() {
             )}
           </div>
         </div>
+
+        {/* Prizes Won Section */}
+        {prizes.length > 0 && (
+          <div className="card-premium rounded-xl p-5 mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-white font-semibold">Prizes Won</h3>
+              <Link href="/raffle" className="text-gold text-xs hover:underline">Pin Wheel</Link>
+            </div>
+            <div className="space-y-2">
+              {prizes.map((prize) => (
+                <div key={prize.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-b-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gold/20 flex items-center justify-center">
+                      <span className="text-lg">🎡</span>
+                    </div>
+                    <div>
+                      <p className="text-gold font-semibold text-sm">{prize.pin_won}</p>
+                      <p className="text-white/30 text-xs">Won {new Date(prize.date_won).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs ${
+                    prize.shipped
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {prize.shipped ? 'Shipped' : 'Processing'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <Footer />

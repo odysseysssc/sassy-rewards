@@ -139,13 +139,6 @@ export function Header() {
                     Shred the Feed
                   </Link>
                   <Link
-                    href="/shaka"
-                    onClick={() => setShowMoreMenu(false)}
-                    className="block px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 transition-colors text-sm"
-                  >
-                    $SHAKA
-                  </Link>
-                  <Link
                     href="/faq"
                     onClick={() => setShowMoreMenu(false)}
                     className="block px-4 py-2 text-white/70 hover:text-white hover:bg-white/5 transition-colors text-sm"
@@ -292,13 +285,6 @@ export function Header() {
               className="text-white hover:text-gold py-3 px-2 text-base font-semibold transition-colors border-b border-white/5"
             >
               Shred the Feed
-            </Link>
-            <Link
-              href="/shaka"
-              onClick={() => setShowMobileMenu(false)}
-              className="text-white hover:text-gold py-3 px-2 text-base font-semibold transition-colors border-b border-white/5"
-            >
-              $SHAKA
             </Link>
             <Link
               href="/faq"

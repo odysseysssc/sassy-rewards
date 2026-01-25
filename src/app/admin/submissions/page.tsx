@@ -45,17 +45,23 @@ interface PinWheelEntry {
   member_name: string | null;
 }
 
+interface ShippingAddress {
+  name: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  country: string | null;
+}
+
 interface PinWheelWinner {
   id: string;
   wallet_address: string;
   date_won: string;
-  prize: string;
+  pin_won: string;
   member_name: string | null;
   shipped: boolean;
-  profile: {
-    display_name?: string;
-    shipping_address?: string;
-  } | null;
+  shipping_address: ShippingAddress | null;
 }
 
 const ADMIN_EMAILS = ['josh@shreddingsassy.com', 'admin@shreddingsassy.com', 'josh@sassy.com'];
@@ -247,6 +253,8 @@ export default function AdminSubmissions() {
   const [pinWheelEntries, setPinWheelEntries] = useState<PinWheelEntry[]>([]);
   const [pinWheelWinners, setPinWheelWinners] = useState<PinWheelWinner[]>([]);
   const [pinWheelLoading, setPinWheelLoading] = useState(false);
+  const [viewingWinner, setViewingWinner] = useState<PinWheelWinner | null>(null);
+  const [togglingShipped, setTogglingShipped] = useState<string | null>(null);
 
   // Review modal state
   const [reviewingSubmission, setReviewingSubmission] = useState<Submission | null>(null);
@@ -302,6 +310,30 @@ export default function AdminSubmissions() {
       setPinWheelLoading(false);
     }
   }, []);
+
+  const toggleShipped = async (winnerId: string, currentShipped: boolean) => {
+    setTogglingShipped(winnerId);
+    try {
+      const res = await fetch('/api/admin/pinwheel-winners', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ winnerId, shipped: !currentShipped }),
+      });
+
+      if (res.ok) {
+        // Update local state
+        setPinWheelWinners(winners =>
+          winners.map(w =>
+            w.id === winnerId ? { ...w, shipped: !currentShipped } : w
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error toggling shipped:', error);
+    } finally {
+      setTogglingShipped(null);
+    }
+  };
 
   useEffect(() => {
     if (sessionStatus === 'loading') return;
@@ -647,7 +679,7 @@ export default function AdminSubmissions() {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[700px]">
+                    <table className="w-full min-w-[800px]">
                       <thead>
                         <tr className="border-b border-white/10">
                           <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Date</th>
@@ -655,6 +687,7 @@ export default function AdminSubmissions() {
                           <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Wallet</th>
                           <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Prize</th>
                           <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Shipped</th>
+                          <th className="text-right text-white/50 text-sm font-medium px-4 py-3">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -664,22 +697,34 @@ export default function AdminSubmissions() {
                               {new Date(winner.date_won).toLocaleDateString()}
                             </td>
                             <td className="text-white text-sm px-4 py-3">
-                              {winner.member_name || winner.profile?.display_name || '-'}
+                              {winner.member_name || '-'}
                             </td>
                             <td className="text-white/50 text-sm px-4 py-3 font-mono">
                               {truncateWallet(winner.wallet_address)}
                             </td>
                             <td className="text-gold text-sm px-4 py-3 font-medium">
-                              {winner.prize}
+                              {winner.pin_won}
                             </td>
                             <td className="text-sm px-4 py-3">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                winner.shipped
-                                  ? 'bg-green-500/20 text-green-400'
-                                  : 'bg-yellow-500/20 text-yellow-400'
-                              }`}>
-                                {winner.shipped ? 'Shipped' : 'Pending'}
-                              </span>
+                              <button
+                                onClick={() => toggleShipped(winner.id, winner.shipped)}
+                                disabled={togglingShipped === winner.id}
+                                className={`px-2 py-1 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                                  winner.shipped
+                                    ? 'bg-green-500/20 text-green-400'
+                                    : 'bg-yellow-500/20 text-yellow-400'
+                                } ${togglingShipped === winner.id ? 'opacity-50' : ''}`}
+                              >
+                                {togglingShipped === winner.id ? '...' : winner.shipped ? 'Shipped' : 'Pending'}
+                              </button>
+                            </td>
+                            <td className="text-right px-4 py-3">
+                              <button
+                                onClick={() => setViewingWinner(winner)}
+                                className="text-gold text-sm hover:underline"
+                              >
+                                View Details
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -828,6 +873,73 @@ export default function AdminSubmissions() {
                 className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Winner Details Modal */}
+      {viewingWinner && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="card-premium rounded-2xl p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold text-white mb-4">Winner Details</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-white/50 text-sm block mb-1">Date Won</label>
+                <p className="text-white">{new Date(viewingWinner.date_won).toLocaleDateString()}</p>
+              </div>
+
+              <div>
+                <label className="text-white/50 text-sm block mb-1">Winner</label>
+                <p className="text-white">{viewingWinner.member_name || 'Unknown'}</p>
+                <p className="text-white/40 text-xs font-mono">{viewingWinner.wallet_address}</p>
+              </div>
+
+              <div>
+                <label className="text-white/50 text-sm block mb-1">Prize</label>
+                <p className="text-gold font-semibold">{viewingWinner.pin_won}</p>
+              </div>
+
+              <div>
+                <label className="text-white/50 text-sm block mb-1">Status</label>
+                <button
+                  onClick={() => toggleShipped(viewingWinner.id, viewingWinner.shipped)}
+                  disabled={togglingShipped === viewingWinner.id}
+                  className={`px-3 py-1.5 rounded-full text-sm cursor-pointer hover:opacity-80 transition-opacity ${
+                    viewingWinner.shipped
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-yellow-500/20 text-yellow-400'
+                  }`}
+                >
+                  {togglingShipped === viewingWinner.id ? '...' : viewingWinner.shipped ? 'Shipped' : 'Pending - Click to mark shipped'}
+                </button>
+              </div>
+
+              <div>
+                <label className="text-white/50 text-sm block mb-1">Shipping Address</label>
+                {viewingWinner.shipping_address ? (
+                  <div className="bg-white/5 rounded-lg p-3 text-sm">
+                    <p className="text-white">{viewingWinner.shipping_address.name}</p>
+                    <p className="text-white/70">{viewingWinner.shipping_address.address}</p>
+                    <p className="text-white/70">
+                      {viewingWinner.shipping_address.city}, {viewingWinner.shipping_address.state} {viewingWinner.shipping_address.zip}
+                    </p>
+                    <p className="text-white/70">{viewingWinner.shipping_address.country}</p>
+                  </div>
+                ) : (
+                  <p className="text-white/40 text-sm">No shipping address on file</p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <button
+                onClick={() => setViewingWinner(null)}
+                className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>
