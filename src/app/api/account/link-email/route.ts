@@ -76,10 +76,10 @@ export async function POST(request: NextRequest) {
 
     // Handle Drip integration
     if (user.drip_account_id) {
-      // User already has a Drip account - create/link email credential to it
+      // User already has a Drip account - link email credential to it
       try {
-        await createEmailCredential(email, user.drip_account_id);
-        console.log(`Created email credential for ${email}, linked to Drip account ${user.drip_account_id}`);
+        await linkCredentialToAccount('email', email, user.drip_account_id);
+        console.log(`Linked email credential ${email} to Drip account ${user.drip_account_id}`);
       } catch (error) {
         console.error('Error creating Drip email credential:', error);
         // Non-fatal - continue
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
             .eq('id', userId);
 
           // Link any existing ghost credentials
-          await linkCredentialToAccount(email, dripAccountId);
+          await linkCredentialToAccount('email', email, dripAccountId);
           console.log(`Created/linked Drip account ${dripAccountId} for ${email}`);
         }
       } catch (error) {
