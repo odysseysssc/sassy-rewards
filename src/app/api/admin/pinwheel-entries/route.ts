@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByWallet } from '@/lib/drip';
+import { getMemberByWallet, getMemberByAccountId } from '@/lib/drip';
 import { requireAdmin } from '@/lib/admin';
 
 // Get the draw date for the current entry window
@@ -38,22 +38,32 @@ export async function GET() {
 
     if (error) throw error;
 
-    // Get unique wallets and fetch member names
-    const uniqueWallets = [...new Set(data?.map(e => e.wallet_address) || [])];
+    // Get unique identifiers (wallets or accountIds) and fetch member names
+    const uniqueIdentifiers = [...new Set(data?.map(e => e.wallet_address) || [])];
     const memberNames: Record<string, string> = {};
 
     // Fetch member names in parallel (max 20 at a time to avoid rate limits)
     const batchSize = 20;
-    for (let i = 0; i < uniqueWallets.length; i += batchSize) {
-      const batch = uniqueWallets.slice(i, i + batchSize);
+    for (let i = 0; i < uniqueIdentifiers.length; i += batchSize) {
+      const batch = uniqueIdentifiers.slice(i, i + batchSize);
       const results = await Promise.all(
-        batch.map(async (wallet) => {
-          const member = await getMemberByWallet(wallet);
-          return { wallet, name: member?.username || null };
+        batch.map(async (identifier) => {
+          // Check if it's a wallet (starts with 0x) or an accountId
+          const isWallet = identifier.startsWith('0x');
+          let member = null;
+
+          if (isWallet) {
+            member = await getMemberByWallet(identifier);
+          } else {
+            // It's an accountId
+            member = await getMemberByAccountId(identifier);
+          }
+
+          return { identifier, name: member?.username || null };
         })
       );
-      results.forEach(({ wallet, name }) => {
-        if (name) memberNames[wallet] = name;
+      results.forEach(({ identifier, name }) => {
+        if (name) memberNames[identifier] = name;
       });
     }
 

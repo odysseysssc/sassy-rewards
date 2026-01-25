@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { PinWheel } from '@/components/PinWheel';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { RAFFLE_COST, PINS } from '@/lib/constants';
+import { RAFFLE_COST } from '@/lib/constants';
 
 interface Winner {
   wallet_address: string;
@@ -35,11 +35,9 @@ export default function RafflePage() {
   const [gritBalance, setGritBalance] = useState<number | null>(null);
   const [hasEntered, setHasEntered] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
-  const [isSpinning, setIsSpinning] = useState(false);
   const [entryCount, setEntryCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [prize, setPrize] = useState<string | null>(null);
-  const [targetSegment, setTargetSegment] = useState<number | null>(null);
+  const [lastWin, setLastWin] = useState<{ pin: string; date: string } | null>(null);
   const [autoEntryEnabled, setAutoEntryEnabled] = useState(false);
   const [isTogglingAutoEntry, setIsTogglingAutoEntry] = useState(false);
   const [winners, setWinners] = useState<Winner[]>([]);
@@ -102,6 +100,15 @@ export default function RafflePage() {
           const data = await autoEntryRes.json();
           setAutoEntryEnabled(data.enabled);
         }
+
+        // Fetch last win for this wallet
+        const lastWinRes = await fetch(`/api/pinwheel/last-spin?wallet=${entryIdentifier}`);
+        if (lastWinRes.ok) {
+          const data = await lastWinRes.json();
+          if (data.lastWin) {
+            setLastWin({ pin: data.lastWin.pin_won, date: data.lastWin.date_won });
+          }
+        }
       }
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -138,15 +145,10 @@ export default function RafflePage() {
         return;
       }
 
-      // Success - update state and spin the wheel
+      // Success - update state
       setHasEntered(true);
       setGritBalance(data.newBalance);
       setEntryCount((prev) => prev + 1);
-      // Pick a random pin to land on for visual effect
-      const randomSegment = Math.floor(Math.random() * PINS.length);
-      setTargetSegment(randomSegment);
-      setPrize(PINS[randomSegment].name);
-      setIsSpinning(true);
     } catch (err) {
       setError('Something went wrong. Please try again.');
       console.error('Error entering raffle:', err);
@@ -186,10 +188,6 @@ export default function RafflePage() {
     }
   };
 
-  const handleSpinComplete = () => {
-    setIsSpinning(false);
-  };
-
   // Calculate time until 8pm UTC draw
   const now = new Date();
   const drawTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 20, 0, 0));
@@ -201,7 +199,7 @@ export default function RafflePage() {
   const hoursUntilDraw = Math.floor(msUntilDraw / (1000 * 60 * 60));
   const minutesUntilDraw = Math.floor((msUntilDraw % (1000 * 60 * 60)) / (1000 * 60));
 
-  const canEnter = isLoggedIn && gritBalance !== null && gritBalance >= RAFFLE_COST && !hasEntered && !isSpinning;
+  const canEnter = isLoggedIn && gritBalance !== null && gritBalance >= RAFFLE_COST && !hasEntered;
 
   // Format date for display
   const formatDate = (dateStr: string) => {
@@ -275,11 +273,7 @@ export default function RafflePage() {
                 Shop All Pins →
               </a>
             </div>
-            <PinWheel
-              isSpinning={isSpinning}
-              targetSegment={targetSegment}
-              onSpinComplete={handleSpinComplete}
-            />
+            <PinWheel isSpinning={false} />
           </div>
 
           {/* Right Side - takes 2 columns */}
@@ -319,21 +313,13 @@ export default function RafflePage() {
                 <div className="card-premium rounded-xl p-6">
                   <h3 className="text-lg font-bold text-white mb-4">Next Draw</h3>
 
-                  {prize ? (
-                    <div className="text-center">
-                      <div className="text-white/50 mb-2">You landed on:</div>
-                      <div className="text-2xl font-bold text-gold mb-4">{prize}</div>
-                      <p className="text-white/60 text-sm">
-                        You&apos;re entered! Winner announced at 8pm UTC.
-                      </p>
-                    </div>
-                  ) : hasEntered ? (
+                  {hasEntered ? (
                     <div className="text-center">
                       <div className="px-4 py-2 rounded-full bg-green-500/20 border border-green-500/30 inline-block mb-4">
                         <span className="text-green-400 text-sm font-medium">Entered Today</span>
                       </div>
                       <p className="text-white/60 text-sm">
-                        Come back tomorrow for another chance!
+                        Winner announced at 8pm UTC. Good luck!
                       </p>
                     </div>
                   ) : gritBalance !== null && gritBalance < RAFFLE_COST ? (
@@ -369,6 +355,24 @@ export default function RafflePage() {
                     </div>
                   )}
                 </div>
+
+                {/* Last Win */}
+                {lastWin && (
+                  <div className="card-premium rounded-xl p-6">
+                    <h3 className="text-lg font-bold text-white mb-3">Your Last Win</h3>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-lg bg-gold/20 flex items-center justify-center">
+                        <span className="text-2xl">🎉</span>
+                      </div>
+                      <div>
+                        <p className="text-gold font-semibold">{lastWin.pin}</p>
+                        <p className="text-white/50 text-sm">
+                          Won on {new Date(lastWin.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
           </div>
         </div>
 

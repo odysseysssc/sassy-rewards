@@ -1,11 +1,31 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getMemberByWallet } from '@/lib/drip';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = createServerClient();
+  const { searchParams } = new URL(request.url);
+  const wallet = searchParams.get('wallet');
 
   try {
+    // If wallet provided, get that user's last win
+    if (wallet) {
+      const { data: lastWin, error: winError } = await supabase
+        .from('pinwheel_winners')
+        .select('pin_won, date_won')
+        .eq('wallet_address', wallet.toLowerCase())
+        .order('date_won', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (winError) {
+        console.error('Error fetching user last win:', winError);
+      }
+
+      return NextResponse.json({ lastWin: lastWin || null });
+    }
+
+    // Otherwise get global last winner
     const { data: winner, error } = await supabase
       .from('pinwheel_winners')
       .select('*')
@@ -14,7 +34,6 @@ export async function GET() {
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      // PGRST116 = no rows returned, which is fine
       console.error('Error fetching last spin:', error);
       return NextResponse.json(
         { error: 'Failed to fetch last spin' },
