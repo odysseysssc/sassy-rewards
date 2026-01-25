@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@/lib/supabase';
+import { Resend } from 'resend';
+import crypto from 'crypto';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session?.user) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
@@ -28,43 +27,78 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
     }
 
-    // Check if email is already in use
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', email.toLowerCase())
+    const supabase = createServerClient();
+    const normalizedEmail = email.toLowerCase();
+
+    // Check if email is already linked to any user
+    const { data: existingCredential } = await supabase
+      .from('connected_credentials')
+      .select('user_id')
+      .eq('credential_type', 'email')
+      .eq('identifier', normalizedEmail)
       .single();
 
-    if (existingUser) {
+    if (existingCredential && existingCredential.user_id !== session.user.id) {
       return NextResponse.json(
         { error: 'This email is already connected to another account' },
         { status: 409 }
       );
     }
 
-    // Generate magic link for email verification
-    // The redirect will include a token to link the email to the current user
-    const { data, error } = await supabase.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email.toLowerCase(),
-      options: {
-        redirectTo: `${process.env.NEXTAUTH_URL}/auth/connect-email?userId=${session.user.id}`,
-      },
-    });
+    if (existingCredential) {
+      // Already linked to this user
+      return NextResponse.json({ success: true, message: 'Email already linked' });
+    }
 
-    if (error) {
-      console.error('Error generating magic link:', error);
+    // Generate a verification token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Store the pending verification
+    const { error: insertError } = await supabase
+      .from('email_verifications')
+      .insert({
+        user_id: session.user.id,
+        email: normalizedEmail,
+        token,
+        expires_at: expiresAt.toISOString(),
+      });
+
+    if (insertError) {
+      console.error('Error storing verification:', insertError);
       return NextResponse.json(
-        { error: 'Failed to send verification email' },
+        { error: 'Failed to create verification' },
         { status: 500 }
       );
     }
 
-    // Send the email using Supabase's built-in email sending
-    // The link is already sent by generateLink when using admin API
-    if (data?.properties?.action_link) {
-      // Link generated successfully - Supabase sends the email automatically
-      console.log(`Magic link generated for email connection: ${email}`);
+    // Send verification email
+    const verifyUrl = `${process.env.NEXTAUTH_URL}/api/auth/verify-email?token=${token}`;
+
+    const { error: emailError } = await resend.emails.send({
+      from: 'Shredding Sassy <noreply@shreddingsassy.com>',
+      to: normalizedEmail,
+      subject: 'Verify your email - Shredding Sassy Rewards',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2>Verify your email</h2>
+          <p>Click the button below to link this email to your Shredding Sassy Rewards account.</p>
+          <a href="${verifyUrl}" style="display: inline-block; background: #D4AF37; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Verify Email
+          </a>
+          <p style="margin-top: 20px; color: #666; font-size: 14px;">
+            This link expires in 24 hours. If you didn't request this, you can ignore this email.
+          </p>
+        </div>
+      `,
+    });
+
+    if (emailError) {
+      console.error('Error sending email:', emailError);
+      return NextResponse.json(
+        { error: 'Failed to send verification email' },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({

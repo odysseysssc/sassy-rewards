@@ -63,7 +63,7 @@ export default function Leaderboard() {
   };
 
   const top3 = leaderboard.slice(0, 3);
-  const rest = leaderboard.slice(3, 50);
+  const rest = leaderboard.slice(3); // Show all remaining entries
 
   return (
     <main className="min-h-screen">

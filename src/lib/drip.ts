@@ -51,7 +51,7 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
     throw new Error('DRIP_REALM_ID is not configured');
   }
 
-  const response = await dripFetch(`/realms/${realmId}/members/leaderboard?limit=50`);
+  const response = await dripFetch(`/realms/${realmId}/members/leaderboard?limit=100`);
 
   return response.data?.map((member: { rank: number; wallet?: string; username?: string; displayName?: string; balance: number; accountId?: string }) => ({
     rank: member.rank,
