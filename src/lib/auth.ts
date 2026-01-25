@@ -6,24 +6,30 @@ import { getMemberByDiscordId, getMemberByWallet, getMemberByEmail } from './dri
 
 // Helper: Find user by any credential
 async function findUserByCredential(type: string, identifier: string) {
-  const supabase = createServerClient();
+  try {
+    const supabase = createServerClient();
 
-  const { data: credential } = await supabase
-    .from('connected_credentials')
-    .select('user_id')
-    .eq('credential_type', type)
-    .eq('identifier', identifier.toLowerCase())
-    .single();
+    const { data: credential, error: credError } = await supabase
+      .from('connected_credentials')
+      .select('user_id')
+      .eq('credential_type', type)
+      .eq('identifier', identifier.toLowerCase())
+      .single();
 
-  if (!credential?.user_id) return null;
+    if (credError || !credential?.user_id) return null;
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', credential.user_id)
-    .single();
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', credential.user_id)
+      .single();
 
-  return user;
+    if (userError) return null;
+    return user;
+  } catch (error) {
+    console.error('findUserByCredential error:', error);
+    return null;
+  }
 }
 
 // Helper: Get all credentials for a user
@@ -48,34 +54,43 @@ async function getUserCredentials(userId: string) {
 
 // Helper: Create new user with initial credential
 async function createUserWithCredential(type: string, identifier: string, dripAccountId?: string) {
-  const supabase = createServerClient();
+  try {
+    const supabase = createServerClient();
 
-  // Create user
-  const { data: user, error: userError } = await supabase
-    .from('users')
-    .insert({
-      email: type === 'email' ? identifier.toLowerCase() : null,
-      drip_account_id: dripAccountId || null,
-    })
-    .select()
-    .single();
+    // Create user
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .insert({
+        email: type === 'email' ? identifier.toLowerCase() : null,
+        drip_account_id: dripAccountId || null,
+      })
+      .select()
+      .single();
 
-  if (userError || !user) {
-    console.error('Error creating user:', userError);
+    if (userError || !user) {
+      console.error('Error creating user:', userError);
+      return null;
+    }
+
+    // Add credential
+    const { error: credError } = await supabase
+      .from('connected_credentials')
+      .insert({
+        user_id: user.id,
+        credential_type: type,
+        identifier: identifier.toLowerCase(),
+        verified: true,
+      });
+
+    if (credError) {
+      console.error('Error adding credential:', credError);
+    }
+
+    return user;
+  } catch (error) {
+    console.error('createUserWithCredential error:', error);
     return null;
   }
-
-  // Add credential
-  await supabase
-    .from('connected_credentials')
-    .insert({
-      user_id: user.id,
-      credential_type: type,
-      identifier: identifier.toLowerCase(),
-      verified: true,
-    });
-
-  return user;
 }
 
 // Helper: Add credential to existing user
