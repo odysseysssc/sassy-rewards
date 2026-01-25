@@ -37,7 +37,7 @@ interface ShippingAddress {
 }
 
 interface ConnectedCredential {
-  type: 'wallet' | 'discord';
+  type: 'wallet' | 'discord' | 'email';
   identifier: string;
   displayName?: string;
 }
@@ -94,10 +94,12 @@ function ProfileContent() {
   const isLoggedIn = !!session?.user || isConnected;
 
   // Get display values
-  const displayEmail = session?.user?.email;
+  const emailCredential = connectedCredentials.find(c => c.type === 'email');
+  const displayEmail = session?.user?.email || emailCredential?.identifier;
   const displayWallet = session?.user?.wallet || address;
   const hasWalletConnected = !!displayWallet || connectedCredentials.some(c => c.type === 'wallet');
   const hasDiscordConnected = !!session?.user?.discordId || connectedCredentials.some(c => c.type === 'discord');
+  const hasEmailConnected = !!displayEmail;
 
   // Redirect if not logged in
   useEffect(() => {
@@ -156,9 +158,10 @@ function ProfileContent() {
     if (!session?.user?.id) return;
 
     try {
-      // Check for connected wallets
+      // Check for connected credentials
       const walletRes = await fetch('/api/account/credentials?type=wallet');
       const discordRes = await fetch('/api/account/credentials?type=discord');
+      const emailRes = await fetch('/api/account/credentials?type=email');
 
       const credentials: ConnectedCredential[] = [];
 
@@ -174,8 +177,17 @@ function ProfileContent() {
       if (discordRes.ok) {
         const discordData = await discordRes.json();
         if (discordData.credentials) {
-          discordData.credentials.forEach((c: { identifier: string; display_name?: string }) => {
-            credentials.push({ type: 'discord', identifier: c.identifier, displayName: c.display_name });
+          discordData.credentials.forEach((c: { identifier: string }) => {
+            credentials.push({ type: 'discord', identifier: c.identifier });
+          });
+        }
+      }
+
+      if (emailRes.ok) {
+        const emailData = await emailRes.json();
+        if (emailData.credentials) {
+          emailData.credentials.forEach((c: { identifier: string }) => {
+            credentials.push({ type: 'email', identifier: c.identifier });
           });
         }
       }
