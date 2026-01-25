@@ -325,9 +325,8 @@ export default function Profile() {
 
   // Handle Discord connection
   const handleConnectDiscord = () => {
-    // Use NextAuth to initiate Discord OAuth
-    // The callback will handle linking to existing account
-    signIn('discord', { callbackUrl: '/profile' });
+    // Use dedicated linking endpoint (not signIn which creates new session)
+    window.location.href = '/api/auth/link-discord';
   };
 
   // Fetch member data
