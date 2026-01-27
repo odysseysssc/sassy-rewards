@@ -18,10 +18,32 @@ export function Header() {
   const [showMenu, setShowMenu] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [linkedWallet, setLinkedWallet] = useState<string | null>(null);
 
-  // Check if user is admin by email or wallet
+  // Fetch linked wallet from credentials if not in session
+  useEffect(() => {
+    async function fetchLinkedWallet() {
+      if (!session?.user?.id || session?.user?.wallet) return;
+
+      try {
+        const res = await fetch('/api/account/credentials?type=wallet');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.credentials?.[0]?.identifier) {
+            setLinkedWallet(data.credentials[0].identifier.toLowerCase());
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching linked wallet:', error);
+      }
+    }
+
+    fetchLinkedWallet();
+  }, [session?.user?.id, session?.user?.wallet]);
+
+  // Check if user is admin by email or wallet (from session, wagmi, or linked credentials)
   const userEmail = session?.user?.email?.toLowerCase();
-  const userWallet = (session?.user?.wallet || address)?.toLowerCase();
+  const userWallet = (session?.user?.wallet || address || linkedWallet)?.toLowerCase();
   const isAdmin = (userEmail && ADMIN_EMAILS.includes(userEmail)) ||
                   (userWallet && ADMIN_WALLETS.includes(userWallet));
 

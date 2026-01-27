@@ -215,9 +215,9 @@ function ProfileContent() {
     }
   }, [session?.user?.id, fetchDisplayName, fetchAddress, fetchCredentials]);
 
-  // Refetch credentials when returning from Discord linking
+  // Refetch credentials when returning from Discord or Email linking
   useEffect(() => {
-    if (searchParams.get('discord_linked') === 'true') {
+    if (searchParams.get('discord_linked') === 'true' || searchParams.get('email_linked') === 'true') {
       fetchCredentials();
       // Clean up URL
       router.replace('/profile', { scroll: false });
