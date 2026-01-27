@@ -434,8 +434,34 @@ export async function getMemberByAccountId(accountId: string): Promise<DripMembe
   const gritCurrencyId = process.env.DRIP_GRIT_CURRENCY_ID;
   if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
 
+  // First try the direct member endpoint
   try {
-    // Search through leaderboard with pagination to find member by accountId
+    const response = await dripFetch(`/realms/${realmId}/members/${accountId}`);
+    const member = response.data || response;
+
+    if (member && (member.accountId || member.id)) {
+      // Get GRIT balance from balances array if present
+      const gritBalance = member.balances?.find((b: { currencyName?: string; currencyId?: string }) =>
+        b.currencyName === 'GRIT' || b.currencyId === gritCurrencyId
+      );
+
+      return {
+        id: member.accountId || member.id || accountId,
+        wallet: member.credentials?.find((c: { format: string }) => c.format === 'blockchain')?.publicIdentifier,
+        email: member.email,
+        username: member.displayName || member.username || member.name,
+        points: gritBalance?.balance ?? member.balance ?? 0,
+        rank: member.rank,
+        currencyId: gritBalance?.currencyId || gritCurrencyId,
+        discordId: member.credentials?.find((c: { provider?: string }) => c.provider === 'discord')?.publicIdentifier,
+      };
+    }
+  } catch (directError) {
+    console.log('Direct member lookup failed, trying leaderboard search:', directError);
+  }
+
+  // Fallback: Search through leaderboard with pagination
+  try {
     const currencyId = process.env.DRIP_GRIT_CURRENCY_ID;
     let cursor: string | undefined;
     let hasNextPage = true;
