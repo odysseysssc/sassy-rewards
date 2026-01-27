@@ -435,36 +435,39 @@ export async function getMemberByAccountId(accountId: string): Promise<DripMembe
   if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
 
   try {
-    console.log('[getMemberByAccountId] Fetching accountId:', accountId);
-    const response = await dripFetch(`/realms/${realmId}/members/${accountId}`);
-    console.log('[getMemberByAccountId] Response:', JSON.stringify(response).slice(0, 500));
+    // Search through leaderboard with pagination to find member by accountId
+    let cursor: string | undefined;
+    let hasNextPage = true;
+    let totalSearched = 0;
 
-    const member = response.data || response;
+    while (hasNextPage && totalSearched < 500) {
+      const params = new URLSearchParams({ take: '50' });
+      if (gritCurrencyId) params.set('currencyId', gritCurrencyId);
+      if (cursor) params.set('after', cursor);
 
-    if (!member) {
-      console.log('[getMemberByAccountId] No member in response');
-      return null;
+      const url = `/realms/${realmId}/members/leaderboard?${params.toString()}`;
+      const response = await dripFetch(url);
+      const members = response.data || [];
+
+      const member = members.find((m: { accountId: string }) => m.accountId === accountId);
+      if (member) {
+        return {
+          id: member.accountId,
+          username: member.displayName || member.username,
+          points: member.balance || 0,
+          rank: member.rank,
+          currencyId: gritCurrencyId,
+        };
+      }
+
+      totalSearched += members.length;
+      hasNextPage = response.meta?.hasNextPage || false;
+      cursor = response.meta?.endCursor;
     }
 
-    // Get GRIT balance from balances array if present
-    const gritBalance = member.balances?.find((b: { currencyName?: string; currencyId?: string }) =>
-      b.currencyName === 'GRIT' || b.currencyId === gritCurrencyId
-    );
-
-    console.log('[getMemberByAccountId] gritBalance:', gritBalance, 'member.balance:', member.balance);
-
-    return {
-      id: member.accountId || member.id || accountId,
-      wallet: member.credentials?.find((c: { format: string }) => c.format === 'blockchain')?.publicIdentifier,
-      email: member.email,
-      username: member.displayName || member.username || member.name,
-      points: gritBalance?.balance ?? member.balance ?? 0,
-      rank: member.rank,
-      currencyId: gritBalance?.currencyId || gritCurrencyId,
-      discordId: member.credentials?.find((c: { provider?: string }) => c.provider === 'discord')?.publicIdentifier,
-    };
+    return null;
   } catch (error) {
-    console.error('[getMemberByAccountId] Error:', error);
+    console.error('getMemberByAccountId error:', error);
     return null;
   }
 }
