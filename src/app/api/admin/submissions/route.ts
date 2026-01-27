@@ -45,6 +45,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'pending';
     const type = searchParams.get('type') || 'all'; // 'general', 'shred', or 'all'
+    const month = searchParams.get('month'); // Format: YYYY-MM (for STF approved filtering)
+    const platform = searchParams.get('platform'); // 'twitter' or 'instagram' (for STF)
 
     let query = supabase
       .from('submissions')
@@ -65,7 +67,19 @@ export async function GET(request: NextRequest) {
       query = query.eq('submission_type', type);
     }
 
-    const { data, error: dbError } = await query.limit(100);
+    // For STF approved tab, add month and platform filters
+    if (type === 'shred' && status === 'approved' && month) {
+      const startDate = `${month}-01`;
+      const endDate = new Date(parseInt(month.split('-')[0]), parseInt(month.split('-')[1]), 0)
+        .toISOString().split('T')[0]; // Last day of month
+      query = query.gte('submitted_at', startDate).lte('submitted_at', `${endDate}T23:59:59`);
+    }
+
+    if (platform && platform !== 'all') {
+      query = query.eq('platform', platform);
+    }
+
+    const { data, error: dbError } = await query.limit(200);
 
     if (dbError) throw dbError;
 

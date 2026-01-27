@@ -424,7 +424,9 @@ export default function AdminSubmissions() {
     setSelectedRewardType(submission.reward_type || '');
     setViewCount(submission.view_count?.toString() || '');
     setReviewNote(submission.review_note || '');
-    setCalculatedGrit(submission.grit_awarded || 0);
+    // Default to 10 GRIT for STF submissions (submission bonus)
+    const defaultGrit = submission.submission_type === 'shred' && !submission.grit_awarded ? 10 : (submission.grit_awarded || 0);
+    setCalculatedGrit(defaultGrit);
   };
 
   const handleApprove = async () => {
