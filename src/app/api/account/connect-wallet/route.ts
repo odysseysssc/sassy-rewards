@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByWallet } from '@/lib/drip';
+import { getMemberByWallet, linkCredentialToAccount } from '@/lib/drip';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
     }
 
     const walletLower = wallet.toLowerCase();
+    const supabase = createServerClient();
 
     // Check if this wallet is already linked to another account
-    const supabase = createServerClient();
     const { data: existingCredential } = await supabase
       .from('connected_credentials')
       .select('user_id')
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if wallet exists in Drip
+    // Check if wallet exists in Drip (may have ghost GRIT)
     const dripMember = await getMemberByWallet(wallet);
 
     // Add credential to our DB
@@ -56,18 +56,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If the user doesn't have a Drip account but the wallet does, link them
-    if (dripMember?.id && !session.user.dripAccountId) {
+    // Get user's current Drip account ID
+    let userDripAccountId = session.user.dripAccountId;
+
+    // If user doesn't have a Drip account but the wallet does, adopt that account
+    if (!userDripAccountId && dripMember?.id) {
+      userDripAccountId = dripMember.id;
       await supabase
         .from('users')
         .update({ drip_account_id: dripMember.id, updated_at: new Date().toISOString() })
         .eq('id', session.user.id);
     }
 
+    // Link wallet credential in Drip (transfers any ghost GRIT to user's account)
+    if (userDripAccountId) {
+      try {
+        await linkCredentialToAccount('wallet', walletLower, userDripAccountId);
+        console.log(`Linked wallet ${walletLower} to Drip account ${userDripAccountId}`);
+      } catch (error) {
+        console.error('Error linking wallet in Drip:', error);
+        // Non-fatal - credential is still saved in our DB
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Wallet linked successfully',
-      dripAccountId: dripMember?.id,
+      dripAccountId: userDripAccountId,
     });
   } catch (error) {
     console.error('Error connecting wallet:', error);

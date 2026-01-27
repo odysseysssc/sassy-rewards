@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByDiscordId } from '@/lib/drip';
+import { getMemberByDiscordId, linkCredentialToAccount } from '@/lib/drip';
 
 // This endpoint handles linking Discord after OAuth callback
 export async function POST(request: Request) {
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if Discord exists in Drip
+    // Check if Discord exists in Drip (may have ghost GRIT)
     const dripMember = await getMemberByDiscordId(discordId);
 
     // Add credential to our DB
@@ -57,18 +57,33 @@ export async function POST(request: Request) {
       }
     }
 
-    // If the user doesn't have a Drip account but Discord does, link them
-    if (dripMember?.id && !session.user.dripAccountId) {
+    // Get user's current Drip account ID
+    let userDripAccountId = session.user.dripAccountId;
+
+    // If user doesn't have a Drip account but Discord does, adopt that account
+    if (!userDripAccountId && dripMember?.id) {
+      userDripAccountId = dripMember.id;
       await supabase
         .from('users')
         .update({ drip_account_id: dripMember.id, updated_at: new Date().toISOString() })
         .eq('id', session.user.id);
     }
 
+    // Link Discord credential in Drip (transfers any ghost GRIT to user's account)
+    if (userDripAccountId) {
+      try {
+        await linkCredentialToAccount('discord-id', discordId, userDripAccountId);
+        console.log(`Linked Discord ${discordId} to Drip account ${userDripAccountId}`);
+      } catch (error) {
+        console.error('Error linking Discord in Drip:', error);
+        // Non-fatal - credential is still saved in our DB
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Discord linked successfully',
-      dripAccountId: dripMember?.id,
+      dripAccountId: userDripAccountId,
     });
   } catch (error) {
     console.error('Error connecting Discord:', error);
