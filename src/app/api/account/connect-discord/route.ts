@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByDiscordId, linkCredentialToAccount } from '@/lib/drip';
+import { getMemberByDiscordId, linkCredentialToAccount, findCredential } from '@/lib/drip';
 
 // This endpoint handles linking Discord after OAuth callback
 export async function POST(request: Request) {
@@ -38,6 +38,20 @@ export async function POST(request: Request) {
 
     // Check if Discord exists in Drip (may have ghost GRIT)
     const dripMember = await getMemberByDiscordId(discordId);
+
+    // Check if Discord is already linked to a DIFFERENT Drip account
+    const existingDripCredential = await findCredential('discord-id', discordId);
+    if (existingDripCredential?.accountId) {
+      // Credential is linked to a Drip account - check if it's this user's
+      const userDripId = session.user.dripAccountId;
+      if (userDripId && existingDripCredential.accountId !== userDripId) {
+        return NextResponse.json(
+          { error: 'This Discord is already linked to another Drip account' },
+          { status: 400 }
+        );
+      }
+      // If user doesn't have a Drip account yet, they can adopt this one (handled below)
+    }
 
     // Add credential to our DB
     if (!existingCredential) {

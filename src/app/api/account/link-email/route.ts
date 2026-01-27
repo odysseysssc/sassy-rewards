@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { claimPendingGrit } from '@/lib/db';
-import { createEmailCredential, linkCredentialToAccount, getOrCreateDripAccount } from '@/lib/drip';
+import { createEmailCredential, linkCredentialToAccount, getOrCreateDripAccount, findCredential } from '@/lib/drip';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,6 +46,19 @@ export async function POST(request: NextRequest) {
         { error: 'This email is already connected to another account' },
         { status: 409 }
       );
+    }
+
+    // Check if email is already linked to a DIFFERENT Drip account
+    const existingDripCredential = await findCredential('email', email.toLowerCase());
+    if (existingDripCredential?.accountId) {
+      // Credential is linked to a Drip account - check if it's this user's
+      if (user.drip_account_id && existingDripCredential.accountId !== user.drip_account_id) {
+        return NextResponse.json(
+          { error: 'This email is already linked to another Drip account' },
+          { status: 400 }
+        );
+      }
+      // If user doesn't have a Drip account yet, they can adopt this one (handled below)
     }
 
     // Update user with the email

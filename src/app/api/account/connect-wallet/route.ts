@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByWallet, linkCredentialToAccount } from '@/lib/drip';
+import { getMemberByWallet, linkCredentialToAccount, findCredential } from '@/lib/drip';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,6 +38,20 @@ export async function POST(request: NextRequest) {
 
     // Check if wallet exists in Drip (may have ghost GRIT)
     const dripMember = await getMemberByWallet(wallet);
+
+    // Check if wallet is already linked to a DIFFERENT Drip account
+    const existingDripCredential = await findCredential('wallet', walletLower);
+    if (existingDripCredential?.accountId) {
+      // Credential is linked to a Drip account - check if it's this user's
+      const userDripId = session.user.dripAccountId;
+      if (userDripId && existingDripCredential.accountId !== userDripId) {
+        return NextResponse.json(
+          { error: 'This wallet is already linked to another Drip account' },
+          { status: 400 }
+        );
+      }
+      // If user doesn't have a Drip account yet, they can adopt this one (handled below)
+    }
 
     // Add credential to our DB
     if (!existingCredential) {
