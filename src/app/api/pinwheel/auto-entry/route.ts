@@ -52,20 +52,27 @@ export async function POST(request: NextRequest) {
     }
 
     const identifierLower = wallet.toLowerCase();
+    const isUUID = isAccountId(wallet);
+
+    console.log('[Auto-Entry] Identifier:', wallet, 'isUUID:', isUUID);
 
     // Check if this is an account ID or wallet address and verify in Drip
     let member;
-    if (isAccountId(wallet)) {
+    if (isUUID) {
       // It's a Drip account ID - look up directly
+      console.log('[Auto-Entry] Looking up by accountId...');
       member = await getMemberByAccountId(wallet);
     } else {
       // It's a wallet address - look up by wallet
+      console.log('[Auto-Entry] Looking up by wallet...');
       member = await getMemberByWallet(wallet);
     }
 
+    console.log('[Auto-Entry] Member found:', member ? member.id : 'null');
+
     if (!member) {
       return NextResponse.json(
-        { error: 'Account not found in Drip. You must have a Drip account to enable auto-entry.' },
+        { error: `Account not found in Drip. Identifier: ${wallet.slice(0, 10)}... isUUID: ${isUUID}` },
         { status: 404 }
       );
     }
