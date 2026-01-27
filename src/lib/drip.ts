@@ -435,25 +435,28 @@ export async function getMemberByAccountId(accountId: string): Promise<DripMembe
   if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
 
   try {
-    // The direct member endpoint doesn't exist, so search the leaderboard
-    const currencyId = process.env.DRIP_GRIT_CURRENCY_ID;
-    const url = currencyId
-      ? `/realms/${realmId}/members/leaderboard?take=200&currencyId=${currencyId}`
-      : `/realms/${realmId}/members/leaderboard?take=200`;
-    const response = await dripFetch(url);
-    const members = response.data || [];
+    // Use direct member endpoint
+    const response = await dripFetch(`/realms/${realmId}/members/${accountId}`);
+    const member = response.data || response;
 
-    const member = members.find((m: { accountId: string }) => m.accountId === accountId);
     if (!member) return null;
 
+    // Get GRIT balance from balances array if present
+    const gritBalance = member.balances?.find((b: { currencyName?: string; currencyId?: string }) =>
+      b.currencyName === 'GRIT' || b.currencyId === gritCurrencyId
+    );
+
     return {
-      id: member.accountId,
+      id: member.accountId || member.id || accountId,
+      wallet: member.credentials?.find((c: { format: string }) => c.format === 'blockchain')?.publicIdentifier,
+      email: member.email,
       username: member.displayName || member.username,
-      points: member.balance || 0,
+      points: gritBalance?.balance ?? member.balance ?? 0,
       rank: member.rank,
-      currencyId: gritCurrencyId,
+      currencyId: gritBalance?.currencyId || gritCurrencyId,
     };
-  } catch {
+  } catch (error) {
+    console.error('getMemberByAccountId error:', error);
     return null;
   }
 }
