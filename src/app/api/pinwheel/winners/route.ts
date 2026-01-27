@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByWallet } from '@/lib/drip';
+import { getMemberByWallet, getMemberByAccountId } from '@/lib/drip';
+
+// Helper to check if a string is a wallet address (starts with 0x)
+function isWalletAddress(identifier: string): boolean {
+  return identifier.startsWith('0x');
+}
 
 export async function GET() {
   const supabase = createServerClient();
@@ -23,16 +28,25 @@ export async function GET() {
     // Fetch member names for all winners
     const winnersWithNames = await Promise.all(
       (winners || []).map(async (winner) => {
+        const identifier = winner.wallet_address;
+        const truncated = identifier.startsWith('0x')
+          ? `${identifier.slice(0, 6)}...${identifier.slice(-4)}`
+          : `${identifier.slice(0, 8)}...`;
+
         try {
-          const member = await getMemberByWallet(winner.wallet_address);
+          // Look up by wallet or account ID depending on format
+          const member = isWalletAddress(identifier)
+            ? await getMemberByWallet(identifier)
+            : await getMemberByAccountId(identifier);
+
           return {
             ...winner,
-            display_name: member?.username || `${winner.wallet_address.slice(0, 6)}...${winner.wallet_address.slice(-4)}`,
+            display_name: member?.username || truncated,
           };
         } catch {
           return {
             ...winner,
-            display_name: `${winner.wallet_address.slice(0, 6)}...${winner.wallet_address.slice(-4)}`,
+            display_name: truncated,
           };
         }
       })
