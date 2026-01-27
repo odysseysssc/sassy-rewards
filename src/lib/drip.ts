@@ -435,15 +435,23 @@ export async function getMemberByAccountId(accountId: string): Promise<DripMembe
   if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
 
   try {
+    console.log('[getMemberByAccountId] Fetching accountId:', accountId);
     const response = await dripFetch(`/realms/${realmId}/members/${accountId}`);
+    console.log('[getMemberByAccountId] Response:', JSON.stringify(response).slice(0, 500));
+
     const member = response.data || response;
 
-    if (!member) return null;
+    if (!member) {
+      console.log('[getMemberByAccountId] No member in response');
+      return null;
+    }
 
     // Get GRIT balance from balances array if present
     const gritBalance = member.balances?.find((b: { currencyName?: string; currencyId?: string }) =>
       b.currencyName === 'GRIT' || b.currencyId === gritCurrencyId
     );
+
+    console.log('[getMemberByAccountId] gritBalance:', gritBalance, 'member.balance:', member.balance);
 
     return {
       id: member.accountId || member.id || accountId,
@@ -456,7 +464,7 @@ export async function getMemberByAccountId(accountId: string): Promise<DripMembe
       discordId: member.credentials?.find((c: { provider?: string }) => c.provider === 'discord')?.publicIdentifier,
     };
   } catch (error) {
-    console.error('getMemberByAccountId error:', error);
+    console.error('[getMemberByAccountId] Error:', error);
     return null;
   }
 }
