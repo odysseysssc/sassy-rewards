@@ -3,9 +3,9 @@ import { createServerClient } from '@/lib/supabase';
 import { getMemberByWallet, getMemberByAccountId, deductGrit } from '@/lib/drip';
 import { RAFFLE_COST } from '@/lib/constants';
 
-// Helper to check if a string looks like a Drip account ID (UUID format)
-function isAccountId(identifier: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+// Helper to check if a string is a wallet address (starts with 0x)
+function isWalletAddress(identifier: string): boolean {
+  return identifier.startsWith('0x');
 }
 
 // Get today's draw date (same logic as enter endpoint)
@@ -80,10 +80,10 @@ async function processAutoEntries(): Promise<{
 
       // Get member from Drip and check balance (wallet can be a wallet address or account ID)
       let member;
-      if (isAccountId(wallet)) {
-        member = await getMemberByAccountId(wallet);
-      } else {
+      if (isWalletAddress(wallet)) {
         member = await getMemberByWallet(wallet);
+      } else {
+        member = await getMemberByAccountId(wallet);
       }
 
       if (!member) {

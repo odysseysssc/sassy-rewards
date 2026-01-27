@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { getMemberByWallet, getMemberByAccountId } from '@/lib/drip';
 
-// Helper to check if a string looks like a Drip account ID (UUID format)
-function isAccountId(identifier: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+// Helper to check if a string is a wallet address (starts with 0x)
+// If not a wallet, assume it's a Drip account ID
+function isWalletAddress(identifier: string): boolean {
+  return identifier.startsWith('0x');
 }
 
 // GET - Check auto-entry status for a wallet/accountId
@@ -52,27 +53,27 @@ export async function POST(request: NextRequest) {
     }
 
     const identifierLower = wallet.toLowerCase();
-    const isUUID = isAccountId(wallet);
+    const isWallet = isWalletAddress(wallet);
 
-    console.log('[Auto-Entry] Identifier:', wallet, 'isUUID:', isUUID);
+    console.log('[Auto-Entry] Identifier:', wallet.slice(0, 12), 'isWallet:', isWallet);
 
-    // Check if this is an account ID or wallet address and verify in Drip
+    // Check if this is a wallet address or account ID and verify in Drip
     let member;
-    if (isUUID) {
-      // It's a Drip account ID - look up directly
-      console.log('[Auto-Entry] Looking up by accountId...');
-      member = await getMemberByAccountId(wallet);
-    } else {
+    if (isWallet) {
       // It's a wallet address - look up by wallet
       console.log('[Auto-Entry] Looking up by wallet...');
       member = await getMemberByWallet(wallet);
+    } else {
+      // It's a Drip account ID - look up by accountId
+      console.log('[Auto-Entry] Looking up by accountId...');
+      member = await getMemberByAccountId(wallet);
     }
 
     console.log('[Auto-Entry] Member found:', member ? member.id : 'null');
 
     if (!member) {
       return NextResponse.json(
-        { error: `Account not found in Drip. Identifier: ${wallet.slice(0, 10)}... isUUID: ${isUUID}` },
+        { error: `Account not found in Drip. Identifier: ${wallet.slice(0, 10)}... isWallet: ${isWallet}` },
         { status: 404 }
       );
     }
