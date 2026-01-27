@@ -2,7 +2,15 @@ import { NextAuthOptions } from 'next-auth';
 import DiscordProvider from 'next-auth/providers/discord';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { createServerClient } from './supabase';
-import { getMemberByDiscordId, getMemberByWallet, getMemberByEmail } from './drip';
+import {
+  getMemberByDiscordId,
+  getMemberByWallet,
+  getOrCreateDripAccount,
+  getOrCreateDripAccountByWallet,
+  getOrCreateDripAccountByDiscord,
+  findCredential,
+  linkCredentialToAccount,
+} from './drip';
 
 // Helper: Find user by any credential
 async function findUserByCredential(type: string, identifier: string) {
@@ -158,23 +166,32 @@ export const authOptions: NextAuthOptions = {
           let user = await findUserByCredential('email', email);
 
           if (!user) {
-            // Try to find/create Drip account
-            const dripMember = await getMemberByEmail(email);
+            // Get or create Drip account - this finds ghost credentials too!
+            const dripAccountId = await getOrCreateDripAccount(email, email.split('@')[0]);
 
             // Create new user
-            user = await createUserWithCredential('email', email, dripMember?.id);
+            user = await createUserWithCredential('email', email, dripAccountId || undefined);
+
+            // Link email credential to Drip account (claims any ghost GRIT)
+            if (dripAccountId) {
+              try {
+                await linkCredentialToAccount('email', email, dripAccountId);
+              } catch (e) {
+                console.error('Failed to link email credential:', e);
+              }
+            }
           }
 
           if (!user) return null;
 
           // Get all linked credentials
-          const credentials = await getUserCredentials(user.id);
+          const creds = await getUserCredentials(user.id);
 
           return {
             id: user.id,
-            email: credentials.email,
-            wallet: credentials.wallet,
-            discordId: credentials.discordId,
+            email: creds.email,
+            wallet: creds.wallet,
+            discordId: creds.discordId,
             dripAccountId: user.drip_account_id,
             authType: 'email',
           };
@@ -205,15 +222,24 @@ export const authOptions: NextAuthOptions = {
           console.log('[Wallet Auth] Found user:', user?.id);
 
           if (!user) {
-            // Try to find Drip account by wallet
-            console.log('[Wallet Auth] No user found, checking Drip...');
-            const dripMember = await getMemberByWallet(wallet);
-            console.log('[Wallet Auth] Drip member:', dripMember?.id);
+            // Get or create Drip account - this finds ghost credentials too!
+            console.log('[Wallet Auth] No user found, getting/creating Drip account...');
+            const dripAccountId = await getOrCreateDripAccountByWallet(wallet);
+            console.log('[Wallet Auth] Drip account:', dripAccountId);
 
             // Create new user
             console.log('[Wallet Auth] Creating new user...');
-            user = await createUserWithCredential('wallet', wallet, dripMember?.id);
+            user = await createUserWithCredential('wallet', wallet, dripAccountId || undefined);
             console.log('[Wallet Auth] Created user:', user?.id);
+
+            // Link wallet credential to Drip account (claims any ghost GRIT)
+            if (dripAccountId) {
+              try {
+                await linkCredentialToAccount('wallet', wallet, dripAccountId);
+              } catch (e) {
+                console.error('[Wallet Auth] Failed to link wallet credential:', e);
+              }
+            }
           }
 
           if (!user) {
@@ -263,11 +289,20 @@ export const authOptions: NextAuthOptions = {
           let user = await findUserByCredential('discord', discordId);
 
           if (!user) {
-            // Try to find Drip account by Discord
-            const dripMember = await getMemberByDiscordId(discordId);
+            // Get or create Drip account - this finds ghost credentials too!
+            const dripAccountId = await getOrCreateDripAccountByDiscord(discordId);
 
             // Create new user
-            user = await createUserWithCredential('discord', discordId, dripMember?.id);
+            user = await createUserWithCredential('discord', discordId, dripAccountId || undefined);
+
+            // Link discord credential to Drip account (claims any ghost GRIT)
+            if (dripAccountId) {
+              try {
+                await linkCredentialToAccount('discord-id', discordId, dripAccountId);
+              } catch (e) {
+                console.error('Failed to link discord credential:', e);
+              }
+            }
           }
 
           if (user) {

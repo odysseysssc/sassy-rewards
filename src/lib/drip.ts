@@ -511,3 +511,57 @@ export async function getOrCreateDripAccount(email: string, username?: string): 
     return null;
   }
 }
+
+/**
+ * Get or create a Drip account for a wallet
+ * Returns the accountId
+ */
+export async function getOrCreateDripAccountByWallet(wallet: string): Promise<string | null> {
+  const walletLower = wallet.toLowerCase();
+
+  // First check if credential already exists (ghost or linked)
+  const existingCredential = await findCredential('wallet', walletLower);
+  if (existingCredential?.accountId) {
+    return existingCredential.accountId;
+  }
+
+  // Also check if member exists via search
+  const existingMember = await getMemberByWallet(wallet);
+  if (existingMember?.id) {
+    return existingMember.id;
+  }
+
+  // Create new wallet credential (this creates an account too)
+  try {
+    const newCredential = await createWalletCredential(walletLower);
+    return newCredential.accountId || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get or create a Drip account for a Discord ID
+ * Returns the accountId
+ */
+export async function getOrCreateDripAccountByDiscord(discordId: string, username?: string): Promise<string | null> {
+  // First check if credential already exists (ghost or linked)
+  const existingCredential = await findCredential('discord-id', discordId);
+  if (existingCredential?.accountId) {
+    return existingCredential.accountId;
+  }
+
+  // Also check if member exists via search
+  const existingMember = await getMemberByDiscordId(discordId);
+  if (existingMember?.id) {
+    return existingMember.id;
+  }
+
+  // Create new discord credential (this creates an account too)
+  try {
+    const newCredential = await createSocialCredential('discord', discordId, username);
+    return newCredential.accountId || null;
+  } catch {
+    return null;
+  }
+}
