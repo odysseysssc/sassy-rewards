@@ -435,26 +435,38 @@ export async function getMemberByAccountId(accountId: string): Promise<DripMembe
   if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
 
   try {
-    // Use direct member endpoint
-    const response = await dripFetch(`/realms/${realmId}/members/${accountId}`);
-    const member = response.data || response;
+    // Search through leaderboard with pagination to find member by accountId
+    const currencyId = process.env.DRIP_GRIT_CURRENCY_ID;
+    let cursor: string | undefined;
+    let hasNextPage = true;
+    let totalSearched = 0;
 
-    if (!member) return null;
+    while (hasNextPage && totalSearched < 500) {
+      const params = new URLSearchParams({ take: '50' });
+      if (currencyId) params.set('currencyId', currencyId);
+      if (cursor) params.set('after', cursor);
 
-    // Get GRIT balance from balances array if present
-    const gritBalance = member.balances?.find((b: { currencyName?: string; currencyId?: string }) =>
-      b.currencyName === 'GRIT' || b.currencyId === gritCurrencyId
-    );
+      const url = `/realms/${realmId}/members/leaderboard?${params.toString()}`;
+      const response = await dripFetch(url);
+      const members = response.data || [];
 
-    return {
-      id: member.accountId || member.id || accountId,
-      wallet: member.credentials?.find((c: { format: string }) => c.format === 'blockchain')?.publicIdentifier,
-      email: member.email,
-      username: member.displayName || member.username,
-      points: gritBalance?.balance ?? member.balance ?? 0,
-      rank: member.rank,
-      currencyId: gritBalance?.currencyId || gritCurrencyId,
-    };
+      const member = members.find((m: { accountId: string }) => m.accountId === accountId);
+      if (member) {
+        return {
+          id: member.accountId,
+          username: member.displayName || member.username,
+          points: member.balance || 0,
+          rank: member.rank,
+          currencyId: gritCurrencyId,
+        };
+      }
+
+      totalSearched += members.length;
+      hasNextPage = response.meta?.hasNextPage || false;
+      cursor = response.meta?.endCursor;
+    }
+
+    return null;
   } catch (error) {
     console.error('getMemberByAccountId error:', error);
     return null;
