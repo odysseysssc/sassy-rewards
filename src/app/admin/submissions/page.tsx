@@ -248,6 +248,19 @@ export default function AdminSubmissions() {
   const [activeTab, setActiveTab] = useState<'general' | 'shred'>('general');
   const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
 
+  // STF specific filters
+  const [stfPlatformFilter, setStfPlatformFilter] = useState<'all' | 'twitter' | 'instagram'>('all');
+  const [stfMonthFilter, setStfMonthFilter] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  // Extra GRIT award modal
+  const [awardingExtraGrit, setAwardingExtraGrit] = useState<Submission | null>(null);
+  const [extraGritAmount, setExtraGritAmount] = useState(0);
+  const [extraGritNote, setExtraGritNote] = useState('');
+  const [submittingExtraGrit, setSubmittingExtraGrit] = useState(false);
+
   // Pin Wheel state
   const [pinWheelTab, setPinWheelTab] = useState<'entries' | 'winners'>('entries');
   const [pinWheelEntries, setPinWheelEntries] = useState<PinWheelEntry[]>([]);
@@ -272,7 +285,17 @@ export default function AdminSubmissions() {
 
   const fetchSubmissions = useCallback(async () => {
     try {
-      const res = await fetch(`/api/admin/submissions?status=${statusFilter}&type=${activeTab}`);
+      let url = `/api/admin/submissions?status=${statusFilter}&type=${activeTab}`;
+
+      // Add STF-specific filters for approved tab
+      if (activeTab === 'shred' && statusFilter === 'approved') {
+        url += `&month=${stfMonthFilter}`;
+        if (stfPlatformFilter !== 'all') {
+          url += `&platform=${stfPlatformFilter}`;
+        }
+      }
+
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setSubmissions(data.submissions || []);
@@ -286,7 +309,35 @@ export default function AdminSubmissions() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, activeTab, router]);
+  }, [statusFilter, activeTab, stfMonthFilter, stfPlatformFilter, router]);
+
+  // Award extra GRIT to an approved submission
+  const handleAwardExtraGrit = async () => {
+    if (!awardingExtraGrit || extraGritAmount <= 0) return;
+    setSubmittingExtraGrit(true);
+
+    try {
+      const res = await fetch(`/api/admin/submissions/${awardingExtraGrit.id}/award-grit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: extraGritAmount,
+          note: extraGritNote,
+        }),
+      });
+
+      if (res.ok) {
+        setAwardingExtraGrit(null);
+        setExtraGritAmount(0);
+        setExtraGritNote('');
+        fetchSubmissions();
+      }
+    } catch (error) {
+      console.error('Error awarding extra GRIT:', error);
+    } finally {
+      setSubmittingExtraGrit(false);
+    }
+  };
 
   const fetchPinWheelData = useCallback(async () => {
     setPinWheelLoading(true);
@@ -513,7 +564,7 @@ export default function AdminSubmissions() {
         </div>
 
         {/* Status Filter */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-4">
           {(['pending', 'approved', 'rejected', 'all'] as const).map((status) => (
             <button
               key={status}
@@ -528,6 +579,46 @@ export default function AdminSubmissions() {
             </button>
           ))}
         </div>
+
+        {/* STF Approved Filters - Month & Platform */}
+        {activeTab === 'shred' && statusFilter === 'approved' && (
+          <div className="flex flex-wrap gap-4 mb-6 p-4 bg-purple-500/10 rounded-lg border border-purple-500/20">
+            <div>
+              <label className="text-white/50 text-xs block mb-1">Month</label>
+              <input
+                type="month"
+                value={stfMonthFilter}
+                onChange={(e) => setStfMonthFilter(e.target.value)}
+                className="px-3 py-1.5 bg-purple-darker border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:border-gold/50"
+              />
+            </div>
+            <div>
+              <label className="text-white/50 text-xs block mb-1">Platform</label>
+              <div className="flex gap-2">
+                {(['all', 'twitter', 'instagram'] as const).map((platform) => (
+                  <button
+                    key={platform}
+                    onClick={() => setStfPlatformFilter(platform)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      stfPlatformFilter === platform
+                        ? platform === 'twitter' ? 'bg-blue-500 text-white' :
+                          platform === 'instagram' ? 'bg-pink-500 text-white' :
+                          'bg-white/20 text-white'
+                        : 'bg-white/10 text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    {platform === 'twitter' ? 'X / Twitter' : platform === 'instagram' ? 'Instagram' : 'All'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-end">
+              <p className="text-white/40 text-xs">
+                Showing {submissions.length} entries for {new Date(stfMonthFilter + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Submissions List */}
         <div className="card-premium rounded-xl overflow-hidden">
@@ -586,12 +677,26 @@ export default function AdminSubmissions() {
                       {sub.grit_awarded > 0 ? `+${sub.grit_awarded}` : '-'}
                     </td>
                     <td className="text-right px-4 py-3">
-                      <button
-                        onClick={() => handleReview(sub)}
-                        className="text-gold text-sm hover:underline"
-                      >
-                        Review
-                      </button>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => handleReview(sub)}
+                          className="text-gold text-sm hover:underline"
+                        >
+                          Review
+                        </button>
+                        {activeTab === 'shred' && sub.status === 'approved' && (
+                          <button
+                            onClick={() => {
+                              setAwardingExtraGrit(sub);
+                              setExtraGritAmount(0);
+                              setExtraGritNote('');
+                            }}
+                            className="text-green-400 text-sm hover:underline"
+                          >
+                            +GRIT
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -789,11 +894,11 @@ export default function AdminSubmissions() {
                   <select
                     value={selectedRewardType}
                     onChange={(e) => setSelectedRewardType(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold/50"
+                    className="w-full px-3 py-2 bg-purple-darker border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold/50 [&>option]:bg-purple-darker [&>option]:text-white"
                   >
-                    <option value="">Select type...</option>
+                    <option value="" className="bg-purple-darker text-white">Select type...</option>
                     {Object.entries(contentRewards).map(([key, reward]) => (
-                      <option key={key} value={key}>
+                      <option key={key} value={key} className="bg-purple-darker text-white">
                         {reward.label} ({reward.base} base)
                       </option>
                     ))}
@@ -870,6 +975,85 @@ export default function AdminSubmissions() {
               </button>
               <button
                 onClick={() => setReviewingSubmission(null)}
+                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Award Extra GRIT Modal */}
+      {awardingExtraGrit && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="card-premium rounded-2xl p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold text-white mb-4">Award Extra GRIT</h2>
+
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">Submission</label>
+              <a
+                href={awardingExtraGrit.content_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold hover:underline text-sm truncate block"
+              >
+                {awardingExtraGrit.content_url}
+              </a>
+              <p className="text-white/40 text-xs mt-1">
+                By: {awardingExtraGrit.users?.display_name || awardingExtraGrit.users?.email || 'Unknown'}
+              </p>
+              <p className="text-white/40 text-xs">
+                Already awarded: {awardingExtraGrit.grit_awarded} GRIT
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-2">Extra GRIT Amount</label>
+              <input
+                type="number"
+                value={extraGritAmount || ''}
+                onChange={(e) => setExtraGritAmount(parseInt(e.target.value) || 0)}
+                placeholder="Enter amount"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+              />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => setExtraGritAmount(100)}
+                  className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg"
+                >
+                  +100 (Made the cut)
+                </button>
+                <button
+                  onClick={() => setExtraGritAmount(500)}
+                  className="px-3 py-1 bg-gold/20 hover:bg-gold/30 text-gold text-xs rounded-lg"
+                >
+                  +500 (Monthly winner)
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="text-white/50 text-sm block mb-2">Note (optional)</label>
+              <input
+                type="text"
+                value={extraGritNote}
+                onChange={(e) => setExtraGritNote(e.target.value)}
+                placeholder="e.g., January compilation winner"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleAwardExtraGrit}
+                disabled={submittingExtraGrit || extraGritAmount <= 0}
+                className="flex-1 bg-green-600 hover:bg-green-500 text-white px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-colors"
+              >
+                {submittingExtraGrit ? '...' : `Award ${extraGritAmount} GRIT`}
+              </button>
+              <button
+                onClick={() => setAwardingExtraGrit(null)}
                 className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
               >
                 Cancel

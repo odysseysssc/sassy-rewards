@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByWallet, deductGrit } from '@/lib/drip';
+import { getMemberByWallet, getMemberByAccountId, deductGrit } from '@/lib/drip';
 import { RAFFLE_COST } from '@/lib/constants';
+
+// Helper to check if a string looks like a Drip account ID (UUID format)
+function isAccountId(identifier: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+}
 
 // Get the draw date for the current entry window
 // Before 8pm UTC: entries are for today's draw
@@ -23,16 +28,19 @@ function getDrawDate(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { wallet } = await request.json();
+    const { wallet, accountId } = await request.json();
 
-    if (!wallet) {
+    // Prefer accountId over wallet address
+    const identifier = accountId || wallet;
+
+    if (!identifier) {
       return NextResponse.json(
-        { error: 'Wallet address is required' },
+        { error: 'Wallet address or account ID is required' },
         { status: 400 }
       );
     }
 
-    const walletLower = wallet.toLowerCase();
+    const identifierLower = identifier.toLowerCase();
     const supabase = createServerClient();
     const drawDate = getDrawDate();
 
@@ -40,7 +48,7 @@ export async function POST(request: NextRequest) {
     const { data: existingEntry } = await supabase
       .from('pinwheel_entries')
       .select('id')
-      .eq('wallet_address', walletLower)
+      .eq('wallet_address', identifierLower)
       .eq('entry_date', drawDate)
       .single();
 
@@ -51,11 +59,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get member and check balance
-    const member = await getMemberByWallet(wallet);
+    // Get member and check balance (identifier can be wallet address or account ID)
+    let member;
+    if (isAccountId(identifier)) {
+      member = await getMemberByAccountId(identifier);
+    } else {
+      member = await getMemberByWallet(identifier);
+    }
+
     if (!member) {
       return NextResponse.json(
-        { error: 'Wallet not found in Drip' },
+        { error: 'Account not found in Drip' },
         { status: 404 }
       );
     }
@@ -87,7 +101,7 @@ export async function POST(request: NextRequest) {
     const { error: insertError } = await supabase
       .from('pinwheel_entries')
       .insert({
-        wallet_address: walletLower,
+        wallet_address: identifierLower,
         entry_date: drawDate,
       });
 

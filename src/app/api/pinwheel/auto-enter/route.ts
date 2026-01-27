@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByWallet, deductGrit } from '@/lib/drip';
+import { getMemberByWallet, getMemberByAccountId, deductGrit } from '@/lib/drip';
 import { RAFFLE_COST } from '@/lib/constants';
+
+// Helper to check if a string looks like a Drip account ID (UUID format)
+function isAccountId(identifier: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+}
 
 // Get today's draw date (same logic as enter endpoint)
 function getDrawDate(): string {
@@ -73,11 +78,17 @@ async function processAutoEntries(): Promise<{
         continue;
       }
 
-      // Get member from Drip and check balance
-      const member = await getMemberByWallet(wallet);
+      // Get member from Drip and check balance (wallet can be a wallet address or account ID)
+      let member;
+      if (isAccountId(wallet)) {
+        member = await getMemberByAccountId(wallet);
+      } else {
+        member = await getMemberByWallet(wallet);
+      }
+
       if (!member) {
         skipped++;
-        results.push({ wallet, success: false, reason: 'Wallet not found in Drip' });
+        results.push({ wallet, success: false, reason: 'Account not found in Drip' });
         continue;
       }
 

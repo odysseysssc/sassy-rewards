@@ -1,25 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByWallet } from '@/lib/drip';
+import { getMemberByWallet, getMemberByAccountId } from '@/lib/drip';
 
-// GET - Check auto-entry status for a wallet
+// Helper to check if a string looks like a Drip account ID (UUID format)
+function isAccountId(identifier: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
+}
+
+// GET - Check auto-entry status for a wallet/accountId
 export async function GET(request: NextRequest) {
-  const wallet = request.nextUrl.searchParams.get('wallet');
+  const identifier = request.nextUrl.searchParams.get('wallet');
 
-  if (!wallet) {
+  if (!identifier) {
     return NextResponse.json(
-      { error: 'Wallet address is required' },
+      { error: 'Wallet address or account ID is required' },
       { status: 400 }
     );
   }
 
-  const walletLower = wallet.toLowerCase();
+  const identifierLower = identifier.toLowerCase();
   const supabase = createServerClient();
 
   const { data } = await supabase
     .from('pinwheel_auto_entries')
     .select('enabled')
-    .eq('wallet_address', walletLower)
+    .eq('wallet_address', identifierLower)
     .single();
 
   return NextResponse.json({
@@ -27,14 +32,14 @@ export async function GET(request: NextRequest) {
   });
 }
 
-// POST - Toggle auto-entry for a wallet
+// POST - Toggle auto-entry for a wallet/accountId
 export async function POST(request: NextRequest) {
   try {
     const { wallet, enabled } = await request.json();
 
     if (!wallet) {
       return NextResponse.json(
-        { error: 'Wallet address is required' },
+        { error: 'Wallet address or account ID is required' },
         { status: 400 }
       );
     }
@@ -46,25 +51,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const walletLower = wallet.toLowerCase();
+    const identifierLower = wallet.toLowerCase();
 
-    // Verify wallet exists in Drip before allowing auto-entry
-    const member = await getMemberByWallet(wallet);
+    // Check if this is an account ID or wallet address and verify in Drip
+    let member;
+    if (isAccountId(wallet)) {
+      // It's a Drip account ID - look up directly
+      member = await getMemberByAccountId(wallet);
+    } else {
+      // It's a wallet address - look up by wallet
+      member = await getMemberByWallet(wallet);
+    }
+
     if (!member) {
       return NextResponse.json(
-        { error: 'Wallet not found in Drip. You must have a Drip account to enable auto-entry.' },
+        { error: 'Account not found in Drip. You must have a Drip account to enable auto-entry.' },
         { status: 404 }
       );
     }
 
     const supabase = createServerClient();
 
-    // Upsert the auto-entry record
+    // Upsert the auto-entry record (wallet_address column stores either wallet or accountId)
     const { error } = await supabase
       .from('pinwheel_auto_entries')
       .upsert(
         {
-          wallet_address: walletLower,
+          wallet_address: identifierLower,
           enabled,
           updated_at: new Date().toISOString(),
         },
