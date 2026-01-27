@@ -57,9 +57,12 @@ interface ShippingAddress {
 interface PinWheelWinner {
   id: string;
   wallet_address: string;
+  identifier_full: string;
+  identifier_type: 'wallet' | 'account_id';
   date_won: string;
   pin_won: string;
   member_name: string | null;
+  user_email: string | null;
   shipped: boolean;
   shipping_address: ShippingAddress | null;
 }
@@ -804,10 +807,12 @@ export default function AdminSubmissions() {
                               {new Date(winner.date_won).toLocaleDateString()}
                             </td>
                             <td className="text-white text-sm px-4 py-3">
-                              {winner.member_name || '-'}
+                              {winner.member_name || winner.user_email || '-'}
                             </td>
                             <td className="text-white/50 text-sm px-4 py-3 font-mono">
-                              {truncateWallet(winner.wallet_address)}
+                              {winner.identifier_type === 'wallet'
+                                ? truncateWallet(winner.wallet_address)
+                                : `ID: ${winner.wallet_address.slice(0, 8)}...`}
                             </td>
                             <td className="text-gold text-sm px-4 py-3 font-medium">
                               {winner.pin_won}
@@ -1080,7 +1085,13 @@ export default function AdminSubmissions() {
               <div>
                 <label className="text-white/50 text-sm block mb-1">Winner</label>
                 <p className="text-white">{viewingWinner.member_name || 'Unknown'}</p>
-                <p className="text-white/40 text-xs font-mono">{viewingWinner.wallet_address}</p>
+                {viewingWinner.user_email && (
+                  <p className="text-white/70 text-sm">{viewingWinner.user_email}</p>
+                )}
+                <p className="text-white/40 text-xs font-mono break-all">
+                  {viewingWinner.identifier_type === 'wallet' ? 'Wallet: ' : 'Account ID: '}
+                  {viewingWinner.identifier_full || viewingWinner.wallet_address}
+                </p>
               </div>
 
               <div>
