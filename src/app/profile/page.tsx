@@ -310,49 +310,77 @@ function ProfileContent() {
     }
   };
 
+  // Link wallet to account
+  const linkWalletToAccount = useCallback(async (walletAddress: string) => {
+    if (!session?.user?.id || walletLinking) return false;
+
+    setWalletLinking(true);
+    setWalletLinkError('');
+
+    try {
+      const res = await fetch('/api/account/connect-wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet: walletAddress }),
+      });
+
+      if (res.ok) {
+        await fetchCredentials();
+        return true;
+      } else {
+        const data = await res.json();
+        setWalletLinkError(data.error || 'Failed to link wallet');
+        return false;
+      }
+    } catch {
+      setWalletLinkError('An error occurred. Please try again.');
+      return false;
+    } finally {
+      setWalletLinking(false);
+    }
+  }, [session?.user?.id, walletLinking, fetchCredentials]);
+
   // Handle wallet connection for linking
   const handleConnectWallet = async () => {
-    // First connect the wallet using wagmi
-    const connector = connectors[0]; // Use first available connector
-    if (connector) {
+    const connector = connectors[0];
+    if (!connector) {
+      setWalletLinkError('No wallet found. Please install MetaMask or another wallet.');
+      return;
+    }
+
+    try {
       connect({ connector });
+    } catch (err) {
+      console.error('Wallet connection error:', err);
+      setWalletLinkError('Failed to open wallet. Please try again.');
     }
   };
 
-  // Link wallet to account after connection
+  // Auto-link wallet when connected and not yet linked
   useEffect(() => {
-    const linkWallet = async () => {
+    const autoLink = async () => {
+      // Only auto-link if we have an address, a session, and no wallet linked yet
       if (address && session?.user?.id && !hasWalletConnected && !walletLinking) {
-        setWalletLinking(true);
-        setWalletLinkError('');
-
-        try {
-          const res = await fetch('/api/account/connect-wallet', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wallet: address }),
-          });
-
-          if (res.ok) {
-            // Refresh credentials
-            await fetchCredentials();
-          } else {
-            const data = await res.json();
-            setWalletLinkError(data.error || 'Failed to link wallet');
-            // Disconnect if linking failed
-            disconnect();
-          }
-        } catch {
-          setWalletLinkError('An error occurred. Please try again.');
+        const success = await linkWalletToAccount(address);
+        if (!success) {
+          // If linking failed, disconnect the wallet
           disconnect();
-        } finally {
-          setWalletLinking(false);
         }
       }
     };
 
-    linkWallet();
-  }, [address, session?.user?.id, hasWalletConnected, walletLinking, disconnect, fetchCredentials]);
+    autoLink();
+  }, [address, session?.user?.id, hasWalletConnected, walletLinking, linkWalletToAccount, disconnect]);
+
+  // Manual link button handler (for when auto-link doesn't trigger)
+  const handleManualLink = async () => {
+    if (address && session?.user?.id) {
+      const success = await linkWalletToAccount(address);
+      if (!success) {
+        disconnect();
+      }
+    }
+  };
 
   // Handle Discord connection
   const handleConnectDiscord = () => {
@@ -586,8 +614,12 @@ function ProfileContent() {
                     <span className="text-white/40">Wallet</span>
                   )}
                 </div>
-                {displayWallet ? (
+                {hasWalletConnected ? (
                   <span className="text-green-400 text-xs">✓</span>
+                ) : address && !hasWalletConnected ? (
+                  <button onClick={handleManualLink} disabled={walletLinking} className="text-gold text-xs hover:underline">
+                    {walletLinking ? '...' : 'Link'}
+                  </button>
                 ) : (
                   <button onClick={handleConnectWallet} disabled={walletLinking} className="text-gold text-xs hover:underline">
                     {walletLinking ? '...' : 'Connect'}
