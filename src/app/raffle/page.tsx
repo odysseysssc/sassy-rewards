@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react';
 import { useAccount } from 'wagmi';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { PinWheel } from '@/components/PinWheel';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -17,7 +17,6 @@ interface Winner {
 }
 
 export default function RafflePage() {
-  const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
   const { address, isConnected } = useAccount();
 
@@ -25,13 +24,6 @@ export default function RafflePage() {
   const accountId = session?.user?.dripAccountId;
   const isLoggedIn = isConnected || !!session?.user;
 
-  // Redirect to signin if not logged in
-  useEffect(() => {
-    if (sessionStatus === 'loading') return;
-    if (!isLoggedIn) {
-      router.push('/signin');
-    }
-  }, [isLoggedIn, sessionStatus, router]);
   const [gritBalance, setGritBalance] = useState<number | null>(null);
   const [hasEntered, setHasEntered] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
@@ -213,7 +205,7 @@ export default function RafflePage() {
   };
 
   // Show loading while checking auth
-  if (sessionStatus === 'loading' || !isLoggedIn) {
+  if (sessionStatus === 'loading') {
     return (
       <main className="min-h-screen">
         <Header />
@@ -283,15 +275,18 @@ export default function RafflePage() {
 
           {/* Right Side - takes 2 columns */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Balance Card */}
+            {/* Balance Card - only show when logged in */}
+            {isLoggedIn && (
                 <div className="card-premium rounded-xl p-6">
                   <div className="text-white/50 text-sm">Your Grit Balance</div>
                   <div className="text-3xl font-bold text-gold">
                     {gritBalance?.toLocaleString() ?? '--'}
                   </div>
                 </div>
+            )}
 
-                {/* Auto-Entry Toggle */}
+            {/* Auto-Entry Toggle - only show when logged in */}
+            {isLoggedIn && (
                 <div className="card-premium rounded-xl p-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -313,12 +308,25 @@ export default function RafflePage() {
                     </button>
                   </div>
                 </div>
+            )}
 
                 {/* Next Draw / Entry Section */}
                 <div className="card-premium rounded-xl p-6">
                   <h3 className="text-lg font-bold text-white mb-4">Next Draw</h3>
 
-                  {hasEntered ? (
+                  {!isLoggedIn ? (
+                    <div className="text-center">
+                      <p className="text-white/60 mb-4">
+                        Sign in to enter the daily draw.
+                      </p>
+                      <button
+                        onClick={() => signIn()}
+                        className="btn-primary px-8 py-4 rounded-xl text-lg font-bold w-full"
+                      >
+                        Sign In to Enter
+                      </button>
+                    </div>
+                  ) : hasEntered ? (
                     <div className="text-center">
                       <div className="px-4 py-2 rounded-full bg-green-500/20 border border-green-500/30 inline-block mb-4">
                         <span className="text-green-400 text-sm font-medium">Entered Today</span>
@@ -332,12 +340,12 @@ export default function RafflePage() {
                       <p className="text-white/60 mb-4">
                         You need at least {RAFFLE_COST} Grit to enter.
                       </p>
-                      <a
+                      <Link
                         href="/submit"
                         className="btn-secondary px-6 py-3 rounded-lg inline-block"
                       >
                         Earn Grit
-                      </a>
+                      </Link>
                     </div>
                   ) : (
                     <div className="text-center">
@@ -361,8 +369,8 @@ export default function RafflePage() {
                   )}
                 </div>
 
-                {/* Last Win */}
-                {lastWin && (
+                {/* Last Win - only show when logged in */}
+                {isLoggedIn && lastWin && (
                   <div className="card-premium rounded-xl p-6">
                     <h3 className="text-lg font-bold text-white mb-3">Your Last Win</h3>
                     <div className="flex items-center gap-4">

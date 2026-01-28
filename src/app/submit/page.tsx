@@ -1,8 +1,7 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
@@ -17,7 +16,6 @@ interface Submission {
 }
 
 export default function Submit() {
-  const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
 
   const [contentUrl, setContentUrl] = useState('');
@@ -27,12 +25,6 @@ export default function Submit() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(true);
 
-  useEffect(() => {
-    if (sessionStatus === 'loading') return;
-    if (!session?.user) {
-      router.push('/signin');
-    }
-  }, [session, sessionStatus, router]);
 
   useEffect(() => {
     async function fetchSubmissions() {
@@ -84,7 +76,9 @@ export default function Submit() {
     }
   };
 
-  if (sessionStatus === 'loading' || !session?.user) {
+  const isLoggedIn = !!session?.user;
+
+  if (sessionStatus === 'loading') {
     return (
       <main className="min-h-screen">
         <Header />
@@ -203,33 +197,44 @@ export default function Submit() {
         </div>
 
         {/* Submit Form */}
-        <form onSubmit={handleSubmit} className="mb-5">
-          {success && (
-            <div className="bg-green-500/20 border border-green-500/30 rounded-lg px-5 py-3 mb-5">
-              <p className="text-green-400 text-base">Submitted! We&apos;ll review within 48-72 hours.</p>
-            </div>
-          )}
+        {isLoggedIn ? (
+          <form onSubmit={handleSubmit} className="mb-5">
+            {success && (
+              <div className="bg-green-500/20 border border-green-500/30 rounded-lg px-5 py-3 mb-5">
+                <p className="text-green-400 text-base">Submitted! We&apos;ll review within 48-72 hours.</p>
+              </div>
+            )}
 
-          <div className="flex gap-4">
-            <input
-              type="url"
-              value={contentUrl}
-              onChange={(e) => setContentUrl(e.target.value)}
-              placeholder="Paste your content link..."
-              className="input-premium flex-1 px-5 py-4 rounded-lg text-white text-base"
-              required
-            />
+            <div className="flex gap-4">
+              <input
+                type="url"
+                value={contentUrl}
+                onChange={(e) => setContentUrl(e.target.value)}
+                placeholder="Paste your content link..."
+                className="input-premium flex-1 px-5 py-4 rounded-lg text-white text-base"
+                required
+              />
+              <button
+                type="submit"
+                disabled={submitting}
+                className="btn-primary px-8 py-4 rounded-lg font-bold whitespace-nowrap text-base"
+              >
+                {submitting ? '...' : 'Submit'}
+              </button>
+            </div>
+
+            {error && <p className="text-red-400 text-base mt-3">{error}</p>}
+          </form>
+        ) : (
+          <div className="mb-5 text-center">
             <button
-              type="submit"
-              disabled={submitting}
-              className="btn-primary px-8 py-4 rounded-lg font-bold whitespace-nowrap text-base"
+              onClick={() => signIn()}
+              className="btn-primary px-8 py-4 rounded-lg font-bold text-base"
             >
-              {submitting ? '...' : 'Submit'}
+              Sign In to Submit
             </button>
           </div>
-
-          {error && <p className="text-red-400 text-base mt-3">{error}</p>}
-        </form>
+        )}
 
         {/* Requirements */}
         <p className="text-white/40 text-sm text-center mb-8">

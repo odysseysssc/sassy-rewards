@@ -1,8 +1,7 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
+import { useSession, signIn } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import Link from 'next/link';
@@ -28,7 +27,6 @@ interface Submission {
 }
 
 export default function ShredTheFeed() {
-  const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
 
   const [contentUrl, setContentUrl] = useState('');
@@ -37,12 +35,7 @@ export default function ShredTheFeed() {
   const [success, setSuccess] = useState(false);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
 
-  useEffect(() => {
-    if (sessionStatus === 'loading') return;
-    if (!session?.user) {
-      router.push('/signin');
-    }
-  }, [session, sessionStatus, router]);
+  const isLoggedIn = !!session?.user;
 
   // Fetch user's shred submissions
   useEffect(() => {
@@ -93,7 +86,7 @@ export default function ShredTheFeed() {
     }
   };
 
-  if (sessionStatus === 'loading' || !session?.user) {
+  if (sessionStatus === 'loading') {
     return (
       <main className="min-h-screen">
         <Header />
@@ -239,7 +232,19 @@ export default function ShredTheFeed() {
         <section className="max-w-4xl mx-auto px-4 md:px-6 py-6">
           <div className="max-w-xl mx-auto">
             <h2 className="text-2xl font-bold text-white text-center mb-6">Submit Your Clip</h2>
-            {success ? (
+            {!isLoggedIn ? (
+              <div className="text-center">
+                <button
+                  onClick={() => signIn()}
+                  className="px-8 py-4 rounded-xl font-bold bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white transition-all"
+                >
+                  Sign In to Submit
+                </button>
+                <p className="text-white/40 text-sm mt-3">
+                  Tag @shreddingsassy + submit here for <span className="text-purple-400">10 bonus GRIT</span>
+                </p>
+              </div>
+            ) : success ? (
               <div className="bg-green-500/20 backdrop-blur border border-green-500/30 rounded-xl px-6 py-4">
                 <p className="text-green-400 text-center">Submitted! We&apos;ll review your clip and add the bonus GRIT.</p>
               </div>
@@ -368,8 +373,8 @@ export default function ShredTheFeed() {
           </div>
         </section>
 
-        {/* Your Submissions */}
-        {submissions.length > 0 && (
+        {/* Your Submissions - only show when logged in */}
+        {isLoggedIn && submissions.length > 0 && (
           <section className="max-w-4xl mx-auto px-4 md:px-6 py-8">
             <div className="card-premium rounded-xl p-6">
               <h3 className="text-white font-semibold mb-4">Your Submissions</h3>

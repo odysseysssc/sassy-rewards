@@ -7,7 +7,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { truncateWallet } from '@/lib/drip';
+import { PINS } from '@/lib/constants';
 import Link from 'next/link';
+import Image from 'next/image';
+
+// Helper to get pin image by name
+function getPinImage(pinName: string): string {
+  const pin = PINS.find(p => p.name.toLowerCase() === pinName.toLowerCase());
+  return pin?.image || '/images/pin.webp';
+}
 
 interface Activity {
   id: string;
@@ -110,13 +118,6 @@ function ProfileContent() {
   const hasDiscordConnected = !!session?.user?.discordId || connectedCredentials.some(c => c.type === 'discord');
   const hasEmailConnected = !!displayEmail;
 
-  // Redirect if not logged in
-  useEffect(() => {
-    if (sessionStatus === 'loading') return;
-    if (!isLoggedIn) {
-      router.push('/signin');
-    }
-  }, [isLoggedIn, sessionStatus, router]);
 
   // Fetch display name
   const fetchDisplayName = useCallback(async () => {
@@ -451,13 +452,37 @@ function ProfileContent() {
     fetchData();
   }, [isLoggedIn, session, address]);
 
-  if (sessionStatus === 'loading' || !isLoggedIn) {
+  if (sessionStatus === 'loading') {
     return (
       <main className="min-h-screen">
         <Header />
         <div className="flex items-center justify-center py-32">
           <div className="w-12 h-12 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
         </div>
+        <Footer />
+      </main>
+    );
+  }
+
+  // Show sign-in prompt if not logged in
+  if (!isLoggedIn) {
+    return (
+      <main className="min-h-screen">
+        <Header />
+        <section className="max-w-4xl mx-auto px-4 md:px-6 py-16 md:py-24">
+          <div className="card-premium rounded-2xl p-8 md:p-12 text-center">
+            <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">Your Profile</h1>
+            <p className="text-white/50 text-lg mb-8">
+              Sign in to view your GRIT balance, submissions, and manage your account.
+            </p>
+            <button
+              onClick={() => signIn()}
+              className="btn-primary px-8 py-4 rounded-lg font-bold text-lg"
+            >
+              Sign In
+            </button>
+          </div>
+        </section>
         <Footer />
       </main>
     );
@@ -746,7 +771,7 @@ function ProfileContent() {
           {/* Submissions */}
           <div className="card-premium rounded-xl p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-white font-semibold">Recent Submissions</h3>
+              <h3 className="text-white font-semibold">Content Submissions</h3>
               <Link href="/submit" className="text-gold text-xs hover:underline">Submit New</Link>
             </div>
             {submissions.length > 0 ? (
@@ -828,8 +853,14 @@ function ProfileContent() {
               {prizes.map((prize) => (
                 <div key={prize.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-b-0">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-gold/20 flex items-center justify-center">
-                      <span className="text-lg">🎡</span>
+                    <div className="w-10 h-10 rounded-lg bg-gold/20 flex items-center justify-center overflow-hidden relative">
+                      <Image
+                        src={getPinImage(prize.pin_won)}
+                        alt={prize.pin_won}
+                        fill
+                        className="object-contain p-1"
+                        sizes="40px"
+                      />
                     </div>
                     <div>
                       <p className="text-gold font-semibold text-sm">{prize.pin_won}</p>
