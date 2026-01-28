@@ -106,8 +106,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate submission type
-    const validSubmissionType = submissionType === 'shred' ? 'shred' : 'general';
+    // Auto-detect Shred the Feed from content
+    const isShredTheFeed = (url: string, desc?: string): boolean => {
+      const text = `${url} ${desc || ''}`.toLowerCase();
+      return (
+        text.includes('shredthefeed') ||
+        text.includes('shred the feed') ||
+        text.includes('#shredthefeed') ||
+        text.includes('shred-the-feed')
+      );
+    };
+
+    // Validate submission type - auto-detect STF if not explicitly set
+    const detectedSTF = isShredTheFeed(contentUrl, description);
+    const validSubmissionType = submissionType === 'shred' || detectedSTF ? 'shred' : 'general';
 
     // Check if user has already submitted today for this type
     const alreadySubmitted = await hasSubmittedToday(session.user.id, validSubmissionType);

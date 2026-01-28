@@ -1,30 +1,111 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { PINS } from '@/lib/constants';
-import { getMemberByWallet } from '@/lib/drip';
+import { getMemberByWallet, getMemberByAccountId } from '@/lib/drip';
 
 const LOGO_URL = 'https://portal.shreddingsassy.com/images/sassy%20mascot%20logo%20(2).jpg';
 
-async function notifyDiscord(wallet: string, pin: string) {
+// Helper to check if a string is a wallet address (starts with 0x)
+function isWalletAddress(identifier: string): boolean {
+  return identifier.startsWith('0x');
+}
+
+async function notifyDiscord(identifier: string, pin: string) {
   const webhookUrl = process.env.DISCORD_PINWHEEL_WEBHOOK;
   if (!webhookUrl) {
     console.log('Discord webhook URL not configured');
     return;
   }
 
-  // Try to get member info from Drip
-  let displayName = `${wallet.slice(0, 6)}...${wallet.slice(-4)}`;
+  const supabase = createServerClient();
+  const isWallet = isWalletAddress(identifier);
+
+  // Default truncated display
+  let displayName = isWallet
+    ? `${identifier.slice(0, 6)}...${identifier.slice(-4)}`
+    : `${identifier.slice(0, 8)}...`;
   let discordId: string | undefined;
+
+  // First try to look up from our local database
   try {
-    const member = await getMemberByWallet(wallet);
-    if (member?.username) {
-      displayName = member.username;
-    }
-    if (member?.discordId) {
-      discordId = member.discordId;
+    if (isWallet) {
+      // Look up by wallet credential
+      const { data: credential } = await supabase
+        .from('connected_credentials')
+        .select('user_id')
+        .eq('credential_type', 'wallet')
+        .eq('identifier', identifier.toLowerCase())
+        .single();
+
+      if (credential?.user_id) {
+        const { data: user } = await supabase
+          .from('users')
+          .select('display_name')
+          .eq('id', credential.user_id)
+          .single();
+
+        if (user?.display_name) {
+          displayName = user.display_name;
+        }
+
+        // Also get discord ID for ping
+        const { data: discordCred } = await supabase
+          .from('connected_credentials')
+          .select('identifier')
+          .eq('user_id', credential.user_id)
+          .eq('credential_type', 'discord')
+          .single();
+
+        if (discordCred?.identifier) {
+          discordId = discordCred.identifier;
+        }
+      }
+    } else {
+      // Look up by drip_account_id
+      const { data: user } = await supabase
+        .from('users')
+        .select('id, display_name')
+        .eq('drip_account_id', identifier)
+        .single();
+
+      if (user?.display_name) {
+        displayName = user.display_name;
+      }
+
+      if (user?.id) {
+        // Get discord ID for ping
+        const { data: discordCred } = await supabase
+          .from('connected_credentials')
+          .select('identifier')
+          .eq('user_id', user.id)
+          .eq('credential_type', 'discord')
+          .single();
+
+        if (discordCred?.identifier) {
+          discordId = discordCred.identifier;
+        }
+      }
     }
   } catch (error) {
-    console.error('Error fetching member info:', error);
+    console.log('Local DB lookup failed, trying Drip:', error);
+  }
+
+  // If we still don't have a good display name, try Drip
+  if (displayName.includes('...')) {
+    try {
+      const member = isWallet
+        ? await getMemberByWallet(identifier)
+        : await getMemberByAccountId(identifier);
+
+      if (member?.username) {
+        displayName = member.username;
+      }
+      if (member?.discordId && !discordId) {
+        discordId = member.discordId;
+      }
+    } catch (error) {
+      console.error('Error fetching member info from Drip:', error);
+    }
   }
 
   const pinImageUrl = `https://portal.shreddingsassy.com/images/${encodeURIComponent(pin.toLowerCase())}.png`;

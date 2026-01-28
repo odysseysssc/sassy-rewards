@@ -14,9 +14,12 @@ interface LeaderboardEntry {
   points: number;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export default function Home() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     async function fetchLeaderboard() {
@@ -43,7 +46,13 @@ export default function Home() {
   };
 
   const top3 = leaderboard.slice(0, 3);
-  const rest = leaderboard.slice(3, 25);
+
+  // Pagination for entries after top 3 (up to 100 total)
+  const maxEntries = 100;
+  const allRest = leaderboard.slice(3, maxEntries);
+  const totalPages = Math.ceil(allRest.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const rest = allRest.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   return (
     <main className="min-h-screen">
@@ -386,7 +395,7 @@ export default function Home() {
             {/* Remaining Rankings */}
             {rest.length > 0 && (
               <div className="max-w-2xl mx-auto">
-                <div className="card-premium rounded-xl overflow-hidden">
+                <div className="card-premium rounded-xl overflow-hidden min-h-[440px]">
                   <div className="divide-y divide-white/5">
                     {rest.map((entry) => (
                       <div
@@ -408,6 +417,41 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex justify-center items-center gap-2 mt-6">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed text-white/70 hover:bg-white/10 transition-colors"
+                    >
+                      &larr;
+                    </button>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${
+                          currentPage === page
+                            ? 'bg-gold text-black'
+                            : 'text-white/70 hover:bg-white/10'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed text-white/70 hover:bg-white/10 transition-colors"
+                    >
+                      &rarr;
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

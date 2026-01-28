@@ -190,6 +190,24 @@ export async function findUserByWallet(wallet: string): Promise<DbUser | null> {
   return null;
 }
 
+export async function findUserByDiscordId(discordId: string): Promise<DbUser | null> {
+  const supabase = createServerClient();
+
+  // Check connected_credentials for this Discord ID
+  const { data: credential } = await supabase
+    .from('connected_credentials')
+    .select('user_id')
+    .eq('credential_type', 'discord')
+    .eq('identifier', discordId)
+    .single();
+
+  if (credential?.user_id) {
+    return findUserById(credential.user_id);
+  }
+
+  return null;
+}
+
 export async function getUserConnectedDiscord(userId: string): Promise<string | null> {
   const supabase = createServerClient();
   const { data } = await supabase
