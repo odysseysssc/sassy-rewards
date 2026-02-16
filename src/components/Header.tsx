@@ -190,8 +190,15 @@ export function Header() {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setShowMobileMenu(false)}
-                    className="text-white hover:text-gold py-3 text-lg font-semibold transition-colors"
+                    className="flex items-center gap-3 text-white hover:text-gold py-3 text-lg font-semibold transition-colors"
                   >
+                    <Image
+                      src="/images/sassy drip logo.png"
+                      alt=""
+                      width={20}
+                      height={20}
+                      className="w-5 h-5 object-contain"
+                    />
                     Store
                   </a>
                   <a
