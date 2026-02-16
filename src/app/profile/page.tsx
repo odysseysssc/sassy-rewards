@@ -1,7 +1,8 @@
 'use client';
 
 import { useSession, signIn } from 'next-auth/react';
-import { useAccount, useConnect, useDisconnect } from 'wagmi';
+import { useAccount, useDisconnect } from 'wagmi';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
@@ -64,7 +65,7 @@ function ProfileContent() {
   const searchParams = useSearchParams();
   const { data: session, status: sessionStatus } = useSession();
   const { address, isConnected } = useAccount();
-  const { connectors, connect } = useConnect();
+  const { openConnectModal } = useConnectModal();
   const { disconnect } = useDisconnect();
 
   const [gritBalance, setGritBalance] = useState<number | null>(null);
@@ -348,18 +349,11 @@ function ProfileContent() {
   }, [session?.user?.id, walletLinking, fetchCredentials]);
 
   // Handle wallet connection for linking
-  const handleConnectWallet = async () => {
-    const connector = connectors[0];
-    if (!connector) {
-      setWalletLinkError('No wallet found. Please install MetaMask or another wallet.');
-      return;
-    }
-
-    try {
-      connect({ connector });
-    } catch (err) {
-      console.error('Wallet connection error:', err);
-      setWalletLinkError('Failed to open wallet. Please try again.');
+  const handleConnectWallet = () => {
+    if (openConnectModal) {
+      openConnectModal();
+    } else {
+      setWalletLinkError('Wallet connection not available. Please refresh the page.');
     }
   };
 
