@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
 import { useAccount, useDisconnect } from 'wagmi';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { truncateWallet } from '@/lib/drip';
 
 const ADMIN_EMAILS = ['josh@shreddingsassy.com', 'admin@shreddingsassy.com', 'josh@sassy.com'];
@@ -18,6 +18,8 @@ export function Header() {
   const [showMenu, setShowMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [linkedWallet, setLinkedWallet] = useState<string | null>(null);
+  const burgerMenuRef = useRef<HTMLDivElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Fetch linked wallet from credentials if not in session
   useEffect(() => {
@@ -93,6 +95,21 @@ export function Header() {
     fetchGrit();
   }, [isLoggedIn, session, address]);
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (burgerMenuRef.current && !burgerMenuRef.current.contains(event.target as Node)) {
+        setShowMobileMenu(false);
+      }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleLogout = async () => {
     disconnect();
     await signOut({ redirect: false });
@@ -122,14 +139,12 @@ export function Header() {
           >
             Rewards
           </Link>
-          {isLoggedIn && (
-            <Link
-              href="/submit"
-              className="text-white hover:text-gold text-base font-semibold transition-colors"
-            >
-              Submit Content
-            </Link>
-          )}
+          <Link
+            href="/submit"
+            className="text-white hover:text-gold text-base font-semibold transition-colors"
+          >
+            Submit Content
+          </Link>
           {isAdmin && (
             <Link
               href="/admin/submissions"
@@ -143,7 +158,7 @@ export function Header() {
         {/* Right Side - Auth & Burger Menu */}
         <div className="flex items-center gap-3">
           {/* Burger Menu - visible on all screen sizes */}
-          <div className="relative">
+          <div className="relative" ref={burgerMenuRef}>
             <button
               onClick={() => setShowMobileMenu(!showMobileMenu)}
               className="p-2 text-white/70 hover:text-white transition-colors"
@@ -193,7 +208,7 @@ export function Header() {
                     className="flex items-center gap-3 text-white hover:text-gold py-3 text-lg font-semibold transition-colors"
                   >
                     <Image
-                      src="/images/sassy drip logo.png"
+                      src="/favicon.ico"
                       alt=""
                       width={20}
                       height={20}
@@ -243,7 +258,7 @@ export function Header() {
           </div>
 
           {isLoggedIn ? (
-            <div className="relative">
+            <div className="relative" ref={profileMenuRef}>
               <button
                 onClick={() => setShowMenu(!showMenu)}
                 className="flex items-center gap-3 card-premium rounded-lg px-4 py-2 hover:border-gold/40 transition-all"
