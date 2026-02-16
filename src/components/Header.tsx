@@ -114,43 +114,31 @@ export function Header() {
           />
         </Link>
 
-        {/* Nav Links - Desktop */}
-        {isLoggedIn && (
-          <nav className="hidden md:flex items-center gap-6">
-            <Link
-              href="/"
-              className="text-white hover:text-gold text-base font-semibold transition-colors"
-            >
-              Home
-            </Link>
+        {/* Nav Links */}
+        <nav className="hidden md:flex items-center gap-6">
+          <Link
+            href="/"
+            className="text-white hover:text-gold text-base font-semibold transition-colors"
+          >
+            Rewards
+          </Link>
+          {isLoggedIn && (
             <Link
               href="/submit"
               className="text-white hover:text-gold text-base font-semibold transition-colors"
             >
               Submit Content
             </Link>
+          )}
+          {isAdmin && (
             <Link
-              href="/raffle"
-              className="text-white hover:text-gold text-base font-semibold transition-colors"
+              href="/admin/submissions"
+              className="text-gold hover:text-gold/80 text-base font-semibold transition-colors"
             >
-              Pin Wheel
+              Admin
             </Link>
-            <Link
-              href="/shred-the-feed"
-              className="text-white hover:text-gold text-base font-semibold transition-colors"
-            >
-              Shred the Feed
-            </Link>
-            {isAdmin && (
-              <Link
-                href="/admin/submissions"
-                className="text-gold hover:text-gold/80 text-base font-semibold transition-colors"
-              >
-                Admin
-              </Link>
-            )}
-          </nav>
-        )}
+          )}
+        </nav>
 
         {/* Right Side - Auth & Burger Menu */}
         <div className="flex items-center gap-3">
@@ -170,33 +158,21 @@ export function Header() {
             {showMobileMenu && (
               <div className="absolute right-0 mt-2 w-56 card-premium rounded-2xl z-50 overflow-hidden">
                 <nav className="p-4 flex flex-col">
-                  {/* Main Links */}
-                  <a
-                    href="https://shreddingsassy.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  {/* Page Links */}
+                  <Link
+                    href="/raffle"
                     onClick={() => setShowMobileMenu(false)}
                     className="text-white hover:text-gold py-3 text-lg font-semibold transition-colors"
                   >
-                    Store
-                  </a>
-                  {isLoggedIn ? (
-                    <Link
-                      href="/profile"
-                      onClick={() => setShowMobileMenu(false)}
-                      className="text-white hover:text-gold py-3 text-lg font-semibold transition-colors"
-                    >
-                      Profile
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/signin"
-                      onClick={() => setShowMobileMenu(false)}
-                      className="text-gold py-3 text-lg font-semibold transition-colors"
-                    >
-                      Sign In
-                    </Link>
-                  )}
+                    Pin Wheel
+                  </Link>
+                  <Link
+                    href="/shred-the-feed"
+                    onClick={() => setShowMobileMenu(false)}
+                    className="text-white hover:text-gold py-3 text-lg font-semibold transition-colors"
+                  >
+                    Shred the Feed
+                  </Link>
                   <Link
                     href="/faq"
                     onClick={() => setShowMobileMenu(false)}
@@ -208,7 +184,16 @@ export function Header() {
                   {/* Divider */}
                   <div className="border-t border-white/10 my-2" />
 
-                  {/* Social Links */}
+                  {/* Store & Social Links */}
+                  <a
+                    href="https://shreddingsassy.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowMobileMenu(false)}
+                    className="text-white hover:text-gold py-3 text-lg font-semibold transition-colors"
+                  >
+                    Store
+                  </a>
                   <a
                     href="https://x.com/ShredSassy"
                     target="_blank"
