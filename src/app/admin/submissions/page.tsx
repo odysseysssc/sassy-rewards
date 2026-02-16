@@ -79,6 +79,7 @@ interface SearchedUser {
   drip_account_id: string | null;
   created_at: string;
   credentials: UserCredential[];
+  gritBalance: number;
 }
 
 const ADMIN_EMAILS = ['josh@shreddingsassy.com', 'admin@shreddingsassy.com', 'josh@sassy.com'];
@@ -298,6 +299,12 @@ export default function AdminSubmissions() {
   const [duplicates, setDuplicates] = useState<{ dripAccountId: string; users: SearchedUser[]; gritBalance: number }[]>([]);
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
   const [mergeAllLoading, setMergeAllLoading] = useState(false);
+
+  // GRIT adjustment modal state
+  const [adjustingGritUser, setAdjustingGritUser] = useState<SearchedUser | null>(null);
+  const [gritAdjustAmount, setGritAdjustAmount] = useState<number>(0);
+  const [gritAdjustReason, setGritAdjustReason] = useState('');
+  const [gritAdjusting, setGritAdjusting] = useState(false);
 
   // Review modal state
   const [reviewingSubmission, setReviewingSubmission] = useState<Submission | null>(null);
@@ -552,6 +559,45 @@ export default function AdminSubmissions() {
     } catch (error) {
       console.error('Error deleting user:', error);
       setMergeResult({ success: false, message: 'Failed to delete user' });
+    }
+  };
+
+  // Adjust GRIT balance
+  const adjustGrit = async () => {
+    if (!adjustingGritUser || gritAdjustAmount === 0) return;
+    setGritAdjusting(true);
+    try {
+      const res = await fetch(`/api/admin/users/${adjustingGritUser.id}/grit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: gritAdjustAmount,
+          reason: gritAdjustReason || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMergeResult({
+          success: true,
+          message: `GRIT adjusted: ${data.oldBalance} → ${data.newBalance} (${gritAdjustAmount > 0 ? '+' : ''}${gritAdjustAmount})`,
+        });
+        // Update the user's balance in the search results
+        setUserSearchResults(prev =>
+          prev.map(u =>
+            u.id === adjustingGritUser.id ? { ...u, gritBalance: data.newBalance } : u
+          )
+        );
+        setAdjustingGritUser(null);
+        setGritAdjustAmount(0);
+        setGritAdjustReason('');
+      } else {
+        setMergeResult({ success: false, message: data.error });
+      }
+    } catch (error) {
+      console.error('Error adjusting GRIT:', error);
+      setMergeResult({ success: false, message: 'Failed to adjust GRIT' });
+    } finally {
+      setGritAdjusting(false);
     }
   };
 
@@ -1238,6 +1284,7 @@ export default function AdminSubmissions() {
                         <th className="text-left text-white/50 text-sm font-medium px-4 py-3 w-10">Select</th>
                         <th className="text-left text-white/50 text-sm font-medium px-4 py-3">User</th>
                         <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Credentials</th>
+                        <th className="text-left text-white/50 text-sm font-medium px-4 py-3">GRIT</th>
                         <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Created</th>
                         <th className="text-right text-white/50 text-sm font-medium px-4 py-3">Actions</th>
                       </tr>
@@ -1292,16 +1339,33 @@ export default function AdminSubmissions() {
                                 )}
                               </div>
                             </td>
+                            <td className="px-4 py-3">
+                              <span className="text-gold font-semibold">{user.gritBalance.toLocaleString()}</span>
+                            </td>
                             <td className="px-4 py-3 text-white/50 text-sm">
                               {new Date(user.created_at).toLocaleDateString()}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <button
-                                onClick={() => deleteUser(user.id)}
-                                className="text-red-400 text-sm hover:underline"
-                              >
-                                Delete
-                              </button>
+                              <div className="flex gap-2 justify-end">
+                                <button
+                                  onClick={() => {
+                                    setAdjustingGritUser(user);
+                                    setGritAdjustAmount(0);
+                                    setGritAdjustReason('');
+                                  }}
+                                  className="text-gold text-sm hover:underline"
+                                  disabled={!user.drip_account_id}
+                                  title={user.drip_account_id ? 'Adjust GRIT' : 'No Drip account'}
+                                >
+                                  GRIT
+                                </button>
+                                <button
+                                  onClick={() => deleteUser(user.id)}
+                                  className="text-red-400 text-sm hover:underline"
+                                >
+                                  Delete
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1710,6 +1774,113 @@ export default function AdminSubmissions() {
                 className="w-full px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GRIT Adjustment Modal */}
+      {adjustingGritUser && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="card-premium rounded-2xl p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold text-white mb-4">Adjust GRIT Balance</h2>
+
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">User</label>
+              <p className="text-white font-medium">
+                {adjustingGritUser.display_name || adjustingGritUser.email || 'Unknown'}
+              </p>
+              {adjustingGritUser.display_name && adjustingGritUser.email && (
+                <p className="text-white/50 text-xs">{adjustingGritUser.email}</p>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">Current Balance</label>
+              <p className="text-gold text-2xl font-bold">{adjustingGritUser.gritBalance.toLocaleString()} GRIT</p>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-2">Adjustment Amount</label>
+              <input
+                type="number"
+                value={gritAdjustAmount || ''}
+                onChange={(e) => setGritAdjustAmount(parseInt(e.target.value) || 0)}
+                placeholder="Enter amount (negative to deduct)"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+              />
+              <div className="flex gap-2 mt-2 flex-wrap">
+                <button
+                  onClick={() => setGritAdjustAmount(100)}
+                  className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs rounded-lg"
+                >
+                  +100
+                </button>
+                <button
+                  onClick={() => setGritAdjustAmount(500)}
+                  className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs rounded-lg"
+                >
+                  +500
+                </button>
+                <button
+                  onClick={() => setGritAdjustAmount(1000)}
+                  className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs rounded-lg"
+                >
+                  +1000
+                </button>
+                <button
+                  onClick={() => setGritAdjustAmount(-100)}
+                  className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs rounded-lg"
+                >
+                  -100
+                </button>
+                <button
+                  onClick={() => setGritAdjustAmount(-500)}
+                  className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs rounded-lg"
+                >
+                  -500
+                </button>
+              </div>
+              {gritAdjustAmount !== 0 && (
+                <p className="text-white/50 text-xs mt-2">
+                  New balance: <span className={gritAdjustAmount > 0 ? 'text-green-400' : 'text-red-400'}>
+                    {(adjustingGritUser.gritBalance + gritAdjustAmount).toLocaleString()} GRIT
+                  </span>
+                </p>
+              )}
+            </div>
+
+            <div className="mb-6">
+              <label className="text-white/50 text-sm block mb-2">Reason (optional)</label>
+              <input
+                type="text"
+                value={gritAdjustReason}
+                onChange={(e) => setGritAdjustReason(e.target.value)}
+                placeholder="e.g., Refund for double charge, Bonus for contest"
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={adjustGrit}
+                disabled={gritAdjusting || gritAdjustAmount === 0}
+                className={`flex-1 px-4 py-3 rounded-lg font-semibold disabled:opacity-50 transition-colors ${
+                  gritAdjustAmount > 0
+                    ? 'bg-green-600 hover:bg-green-500 text-white'
+                    : gritAdjustAmount < 0
+                    ? 'bg-red-600 hover:bg-red-500 text-white'
+                    : 'bg-white/10 text-white/50'
+                }`}
+              >
+                {gritAdjusting ? '...' : gritAdjustAmount > 0 ? `Credit ${gritAdjustAmount} GRIT` : gritAdjustAmount < 0 ? `Deduct ${Math.abs(gritAdjustAmount)} GRIT` : 'Enter amount'}
+              </button>
+              <button
+                onClick={() => setAdjustingGritUser(null)}
+                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
+              >
+                Cancel
               </button>
             </div>
           </div>

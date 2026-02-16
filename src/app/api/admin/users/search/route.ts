@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/admin';
+import { getMemberByAccountId } from '@/lib/drip';
 
 export async function GET(request: NextRequest) {
   const { isAdmin: authorized, error } = await requireAdmin();
@@ -62,13 +63,29 @@ export async function GET(request: NextRequest) {
       .select('user_id, credential_type, identifier')
       .in('user_id', userIds);
 
-    // Build response with credentials attached
-    const usersWithCredentials = uniqueUsers.map(user => ({
-      ...user,
-      credentials: (allCredentials || []).filter(c => c.user_id === user.id),
-    }));
+    // Fetch GRIT balance for users with drip_account_id
+    const usersWithGrit = await Promise.all(
+      uniqueUsers.map(async (user) => {
+        let gritBalance = 0;
+        if (user.drip_account_id) {
+          try {
+            const member = await getMemberByAccountId(user.drip_account_id);
+            if (member) {
+              gritBalance = member.points || 0;
+            }
+          } catch (e) {
+            console.error('Error fetching GRIT for user:', user.id, e);
+          }
+        }
+        return {
+          ...user,
+          credentials: (allCredentials || []).filter(c => c.user_id === user.id),
+          gritBalance,
+        };
+      })
+    );
 
-    return NextResponse.json({ users: usersWithCredentials });
+    return NextResponse.json({ users: usersWithGrit });
   } catch (error) {
     console.error('Error searching users:', error);
     return NextResponse.json({ error: 'Failed to search users' }, { status: 500 });
