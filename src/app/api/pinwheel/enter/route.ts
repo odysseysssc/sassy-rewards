@@ -40,26 +40,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const identifierLower = identifier.toLowerCase();
     const supabase = createServerClient();
     const drawDate = getDrawDate();
 
-    // Check if already entered for current draw window
-    const { data: existingEntry } = await supabase
-      .from('pinwheel_entries')
-      .select('id')
-      .eq('wallet_address', identifierLower)
-      .eq('entry_date', drawDate)
-      .single();
-
-    if (existingEntry) {
-      return NextResponse.json(
-        { error: 'You have already entered for this draw' },
-        { status: 400 }
-      );
-    }
-
-    // Get member and check balance (identifier can be wallet address or account ID)
+    // ALWAYS look up the Drip member first to get canonical account ID
+    // This prevents double charges when user enters with different credentials
     let member;
     if (isWalletAddress(identifier)) {
       member = await getMemberByWallet(identifier);
@@ -72,6 +57,43 @@ export async function POST(request: NextRequest) {
         { error: 'Account not found in Drip' },
         { status: 404 }
       );
+    }
+
+    // Use Drip account ID as the canonical identifier for entries
+    // This ensures one entry per Drip account, regardless of which credential was used
+    const canonicalId = member.id.toLowerCase();
+
+    // Check if already entered for current draw window using canonical Drip account ID
+    const { data: existingEntry } = await supabase
+      .from('pinwheel_entries')
+      .select('id')
+      .eq('wallet_address', canonicalId)
+      .eq('entry_date', drawDate)
+      .single();
+
+    if (existingEntry) {
+      return NextResponse.json(
+        { error: 'You have already entered for this draw' },
+        { status: 400 }
+      );
+    }
+
+    // Also check for legacy entries using the raw identifier (backwards compatibility)
+    const identifierLower = identifier.toLowerCase();
+    if (identifierLower !== canonicalId) {
+      const { data: legacyEntry } = await supabase
+        .from('pinwheel_entries')
+        .select('id')
+        .eq('wallet_address', identifierLower)
+        .eq('entry_date', drawDate)
+        .single();
+
+      if (legacyEntry) {
+        return NextResponse.json(
+          { error: 'You have already entered for this draw' },
+          { status: 400 }
+        );
+      }
     }
 
     if (member.points < RAFFLE_COST) {
@@ -88,27 +110,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Deduct Grit
-    const deductResult = await deductGrit(member.id, RAFFLE_COST, member.currencyId);
-    if (!deductResult.success) {
-      return NextResponse.json(
-        { error: deductResult.error || 'Failed to deduct Grit' },
-        { status: 500 }
-      );
-    }
-
-    // Create entry
+    // Create entry FIRST to claim the slot (prevents race conditions)
     const { error: insertError } = await supabase
       .from('pinwheel_entries')
       .insert({
-        wallet_address: identifierLower,
+        wallet_address: canonicalId,
         entry_date: drawDate,
       });
 
     if (insertError) {
+      // If it's a unique constraint violation, user already entered
+      if (insertError.code === '23505') {
+        return NextResponse.json(
+          { error: 'You have already entered for this draw' },
+          { status: 400 }
+        );
+      }
       console.error('Error creating entry:', insertError);
       return NextResponse.json(
         { error: 'Failed to create entry' },
+        { status: 500 }
+      );
+    }
+
+    // Now deduct Grit (entry is already claimed)
+    const deductResult = await deductGrit(member.id, RAFFLE_COST, member.currencyId);
+    if (!deductResult.success) {
+      // GRIT deduction failed - remove the entry we just created
+      await supabase
+        .from('pinwheel_entries')
+        .delete()
+        .eq('wallet_address', canonicalId)
+        .eq('entry_date', drawDate);
+
+      return NextResponse.json(
+        { error: deductResult.error || 'Failed to deduct Grit' },
         { status: 500 }
       );
     }

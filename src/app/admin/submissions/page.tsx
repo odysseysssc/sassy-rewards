@@ -295,8 +295,9 @@ export default function AdminSubmissions() {
   const [selectedUsersForMerge, setSelectedUsersForMerge] = useState<SearchedUser[]>([]);
   const [merging, setMerging] = useState(false);
   const [mergeResult, setMergeResult] = useState<{ success: boolean; message: string; log?: string[] } | null>(null);
-  const [duplicates, setDuplicates] = useState<{ dripAccountId: string; users: SearchedUser[] }[]>([]);
+  const [duplicates, setDuplicates] = useState<{ dripAccountId: string; users: SearchedUser[]; gritBalance: number }[]>([]);
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
+  const [mergeAllLoading, setMergeAllLoading] = useState(false);
 
   // Review modal state
   const [reviewingSubmission, setReviewingSubmission] = useState<Submission | null>(null);
@@ -569,6 +570,62 @@ export default function AdminSubmissions() {
     } finally {
       setDuplicatesLoading(false);
     }
+  };
+
+  // Auto-merge all duplicates (keeps profile with most credentials)
+  const mergeAllDuplicates = async () => {
+    if (!confirm(`This will merge ${duplicates.length} duplicate groups, keeping the profile with the most credentials in each. Continue?`)) return;
+    setMergeAllLoading(true);
+    setMergeResult(null);
+
+    let successCount = 0;
+    let errorCount = 0;
+    const logs: string[] = [];
+
+    for (const group of duplicates) {
+      // Sort users by number of credentials (descending), then by whether they have email
+      const sorted = [...group.users].sort((a, b) => {
+        const aScore = a.credentials.length + (a.email ? 10 : 0) + (a.display_name ? 1 : 0);
+        const bScore = b.credentials.length + (b.email ? 10 : 0) + (b.display_name ? 1 : 0);
+        return bScore - aScore;
+      });
+
+      const keepUser = sorted[0];
+      const deleteUsers = sorted.slice(1);
+
+      for (const deleteUser of deleteUsers) {
+        try {
+          const res = await fetch('/api/admin/users/merge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              keepUserId: keepUser.id,
+              deleteUserId: deleteUser.id,
+            }),
+          });
+          if (res.ok) {
+            successCount++;
+            logs.push(`Merged ${deleteUser.email || deleteUser.id.slice(0, 8)} → ${keepUser.email || keepUser.id.slice(0, 8)}`);
+          } else {
+            errorCount++;
+            const data = await res.json();
+            logs.push(`Failed: ${data.error}`);
+          }
+        } catch {
+          errorCount++;
+        }
+      }
+    }
+
+    setMergeResult({
+      success: errorCount === 0,
+      message: `Merged ${successCount} profiles${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
+      log: logs,
+    });
+
+    // Refresh duplicates list
+    findDuplicates();
+    setMergeAllLoading(false);
   };
 
   useEffect(() => {
@@ -1279,10 +1336,25 @@ export default function AdminSubmissions() {
 
               {duplicates.length > 0 && (
                 <div className="space-y-4">
-                  <p className="text-gold text-sm font-medium">Found {duplicates.length} duplicate group{duplicates.length > 1 ? 's' : ''}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-gold text-sm font-medium">Found {duplicates.length} duplicate group{duplicates.length > 1 ? 's' : ''}</p>
+                    <button
+                      onClick={mergeAllDuplicates}
+                      disabled={mergeAllLoading}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-semibold text-sm disabled:opacity-50"
+                    >
+                      {mergeAllLoading ? 'Merging...' : 'Merge All (Keep Best)'}
+                    </button>
+                  </div>
                   {duplicates.map((group) => (
                     <div key={group.dripAccountId} className="card-premium rounded-xl p-4 border border-yellow-500/20">
-                      <p className="text-white/50 text-xs mb-3 font-mono">Drip Account: {group.dripAccountId}</p>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-white/50 text-xs font-mono">Drip Account: {group.dripAccountId}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/50 text-xs">GRIT Balance:</span>
+                          <span className="text-gold font-semibold">{group.gritBalance.toLocaleString()}</span>
+                        </div>
+                      </div>
                       <div className="space-y-2">
                         {group.users.map((user, idx) => (
                           <div key={user.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">

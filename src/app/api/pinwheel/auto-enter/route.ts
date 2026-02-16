@@ -60,25 +60,14 @@ async function processAutoEntries(): Promise<{
   let failed = 0;
   let skipped = 0;
 
+  // Track which Drip accounts we've already processed to prevent duplicates
+  const processedDripAccounts = new Set<string>();
+
   for (const entry of autoEntries) {
     const wallet = entry.wallet_address;
 
     try {
-      // Check if already entered today
-      const { data: existingEntry } = await supabase
-        .from('pinwheel_entries')
-        .select('id')
-        .eq('wallet_address', wallet)
-        .eq('entry_date', drawDate)
-        .single();
-
-      if (existingEntry) {
-        skipped++;
-        results.push({ wallet, success: true, reason: 'Already entered today' });
-        continue;
-      }
-
-      // Get member from Drip and check balance (wallet can be a wallet address or account ID)
+      // ALWAYS look up the Drip member first to get canonical account ID
       let member;
       if (isWalletAddress(wallet)) {
         member = await getMemberByWallet(wallet);
@@ -90,6 +79,47 @@ async function processAutoEntries(): Promise<{
         skipped++;
         results.push({ wallet, success: false, reason: 'Account not found in Drip' });
         continue;
+      }
+
+      // Use Drip account ID as the canonical identifier
+      const canonicalId = member.id.toLowerCase();
+
+      // Skip if we already processed this Drip account in this batch
+      if (processedDripAccounts.has(canonicalId)) {
+        skipped++;
+        results.push({ wallet, success: true, reason: 'Drip account already processed this batch' });
+        continue;
+      }
+      processedDripAccounts.add(canonicalId);
+
+      // Check if already entered today using canonical Drip account ID
+      const { data: existingEntry } = await supabase
+        .from('pinwheel_entries')
+        .select('id')
+        .eq('wallet_address', canonicalId)
+        .eq('entry_date', drawDate)
+        .single();
+
+      if (existingEntry) {
+        skipped++;
+        results.push({ wallet, success: true, reason: 'Already entered today' });
+        continue;
+      }
+
+      // Also check for legacy entries using the raw identifier
+      if (wallet.toLowerCase() !== canonicalId) {
+        const { data: legacyEntry } = await supabase
+          .from('pinwheel_entries')
+          .select('id')
+          .eq('wallet_address', wallet.toLowerCase())
+          .eq('entry_date', drawDate)
+          .single();
+
+        if (legacyEntry) {
+          skipped++;
+          results.push({ wallet, success: true, reason: 'Already entered today (legacy)' });
+          continue;
+        }
       }
 
       if (member.points < RAFFLE_COST) {
@@ -104,26 +134,39 @@ async function processAutoEntries(): Promise<{
         continue;
       }
 
-      // Deduct Grit
-      const deductResult = await deductGrit(member.id, RAFFLE_COST, member.currencyId);
-      if (!deductResult.success) {
-        failed++;
-        results.push({ wallet, success: false, reason: deductResult.error || 'Failed to deduct Grit' });
-        continue;
-      }
-
-      // Create entry
+      // Create entry FIRST to claim the slot
       const { error: insertError } = await supabase
         .from('pinwheel_entries')
         .insert({
-          wallet_address: wallet,
+          wallet_address: canonicalId,
           entry_date: drawDate,
         });
 
       if (insertError) {
+        // If it's a unique constraint violation, user already entered
+        if (insertError.code === '23505') {
+          skipped++;
+          results.push({ wallet, success: true, reason: 'Already entered today (race condition prevented)' });
+          continue;
+        }
         failed++;
         results.push({ wallet, success: false, reason: 'Failed to create entry' });
         console.error('Error creating auto-entry:', insertError);
+        continue;
+      }
+
+      // Now deduct Grit (entry is already claimed)
+      const deductResult = await deductGrit(member.id, RAFFLE_COST, member.currencyId);
+      if (!deductResult.success) {
+        // GRIT deduction failed - remove the entry we just created
+        await supabase
+          .from('pinwheel_entries')
+          .delete()
+          .eq('wallet_address', canonicalId)
+          .eq('entry_date', drawDate);
+
+        failed++;
+        results.push({ wallet, success: false, reason: deductResult.error || 'Failed to deduct Grit' });
         continue;
       }
 

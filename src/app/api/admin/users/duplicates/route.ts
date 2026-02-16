@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/admin';
+import { getMemberByAccountId } from '@/lib/drip';
 
 export async function GET() {
   const { isAdmin: authorized, error } = await requireAdmin();
@@ -71,9 +72,28 @@ export async function GET() {
       })),
     }));
 
+    // Fetch GRIT balance for each duplicate group from Drip
+    const duplicatesWithGrit = await Promise.all(
+      duplicatesWithCredentials.map(async (group) => {
+        let gritBalance = 0;
+        try {
+          const member = await getMemberByAccountId(group.dripAccountId);
+          if (member) {
+            gritBalance = member.points || 0;
+          }
+        } catch (e) {
+          console.error('Error fetching GRIT for', group.dripAccountId, e);
+        }
+        return {
+          ...group,
+          gritBalance,
+        };
+      })
+    );
+
     return NextResponse.json({
-      duplicates: duplicatesWithCredentials,
-      totalDuplicateGroups: duplicatesWithCredentials.length,
+      duplicates: duplicatesWithGrit,
+      totalDuplicateGroups: duplicatesWithGrit.length,
     });
   } catch (error) {
     console.error('Error finding duplicates:', error);
