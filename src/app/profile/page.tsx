@@ -37,6 +37,8 @@ interface Submission {
 
 interface ShippingAddress {
   name: string;
+  email: string;
+  phone: string;
   address: string;
   city: string;
   state: string;
@@ -80,6 +82,8 @@ function ProfileContent() {
   // Shipping address state
   const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
     name: '',
+    email: '',
+    phone: '',
     address: '',
     city: '',
     state: '',
@@ -148,6 +152,8 @@ function ProfileContent() {
         if (data.address) {
           setShippingAddress({
             name: data.address.name || '',
+            email: data.address.email || '',
+            phone: data.address.phone || '',
             address: data.address.address || '',
             city: data.address.city || '',
             state: data.address.state || '',
@@ -714,6 +720,22 @@ function ProfileContent() {
                   value={shippingAddress.country}
                   onChange={(e) => setShippingAddress({ ...shippingAddress, country: e.target.value })}
                   placeholder="Country"
+                  className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:border-gold/50"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="email"
+                  value={shippingAddress.email}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, email: e.target.value })}
+                  placeholder="Email"
+                  className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:border-gold/50"
+                />
+                <input
+                  type="tel"
+                  value={shippingAddress.phone}
+                  onChange={(e) => setShippingAddress({ ...shippingAddress, phone: e.target.value })}
+                  placeholder="Phone Number"
                   className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm placeholder-white/30 focus:outline-none focus:border-gold/50"
                 />
               </div>

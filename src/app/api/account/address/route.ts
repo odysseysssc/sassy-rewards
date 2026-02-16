@@ -14,7 +14,7 @@ export async function GET() {
     const supabase = createServerClient();
     const { data, error } = await supabase
       .from('users')
-      .select('shipping_name, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country')
+      .select('shipping_name, shipping_email, shipping_phone, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country')
       .eq('id', session.user.id)
       .single();
 
@@ -26,6 +26,8 @@ export async function GET() {
     return NextResponse.json({
       address: data ? {
         name: data.shipping_name,
+        email: data.shipping_email,
+        phone: data.shipping_phone,
         address: data.shipping_address,
         city: data.shipping_city,
         state: data.shipping_state,
@@ -47,7 +49,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { name, address, city, state, zip, country } = await request.json();
+    const { name, email, phone, address, city, state, zip, country } = await request.json();
 
     if (!name || !address || !city || !state || !zip) {
       return NextResponse.json({ error: 'All address fields are required' }, { status: 400 });
@@ -58,6 +60,8 @@ export async function POST(request: NextRequest) {
       .from('users')
       .update({
         shipping_name: name,
+        shipping_email: email || null,
+        shipping_phone: phone || null,
         shipping_address: address,
         shipping_city: city,
         shipping_state: state,

@@ -40,6 +40,25 @@ async function findUserByCredential(type: string, identifier: string) {
   }
 }
 
+// Helper: Find user by Drip account ID
+async function findUserByDripAccount(dripAccountId: string) {
+  try {
+    const supabase = createServerClient();
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('drip_account_id', dripAccountId)
+      .single();
+
+    if (error) return null;
+    return user;
+  } catch (error) {
+    console.error('findUserByDripAccount error:', error);
+    return null;
+  }
+}
+
 // Helper: Get all credentials for a user
 async function getUserCredentials(userId: string) {
   const supabase = createServerClient();
@@ -169,8 +188,22 @@ export const authOptions: NextAuthOptions = {
             // Get or create Drip account - this finds ghost credentials too!
             const dripAccountId = await getOrCreateDripAccount(email, email.split('@')[0]);
 
-            // Create new user
-            user = await createUserWithCredential('email', email, dripAccountId || undefined);
+            // IMPORTANT: Check if a user with this Drip account already exists
+            // This prevents duplicate profiles when user logs in with different credentials
+            if (dripAccountId) {
+              const existingDripUser = await findUserByDripAccount(dripAccountId);
+              if (existingDripUser) {
+                console.log('[Email Auth] Found existing user with same Drip account, linking credential...');
+                // Link this email credential to the existing user
+                await addCredentialToUser(existingDripUser.id, 'email', email);
+                user = existingDripUser;
+              }
+            }
+
+            // Only create new user if we didn't find an existing one
+            if (!user) {
+              user = await createUserWithCredential('email', email, dripAccountId || undefined);
+            }
 
             // Link email credential to Drip account (claims any ghost GRIT)
             if (dripAccountId) {
@@ -227,10 +260,24 @@ export const authOptions: NextAuthOptions = {
             const dripAccountId = await getOrCreateDripAccountByWallet(wallet);
             console.log('[Wallet Auth] Drip account:', dripAccountId);
 
-            // Create new user
-            console.log('[Wallet Auth] Creating new user...');
-            user = await createUserWithCredential('wallet', wallet, dripAccountId || undefined);
-            console.log('[Wallet Auth] Created user:', user?.id);
+            // IMPORTANT: Check if a user with this Drip account already exists
+            // This prevents duplicate profiles when user logs in with different credentials
+            if (dripAccountId) {
+              const existingDripUser = await findUserByDripAccount(dripAccountId);
+              if (existingDripUser) {
+                console.log('[Wallet Auth] Found existing user with same Drip account, linking credential...');
+                // Link this wallet credential to the existing user
+                await addCredentialToUser(existingDripUser.id, 'wallet', wallet);
+                user = existingDripUser;
+              }
+            }
+
+            // Only create new user if we didn't find an existing one
+            if (!user) {
+              console.log('[Wallet Auth] Creating new user...');
+              user = await createUserWithCredential('wallet', wallet, dripAccountId || undefined);
+              console.log('[Wallet Auth] Created user:', user?.id);
+            }
 
             // Link wallet credential to Drip account (claims any ghost GRIT)
             if (dripAccountId) {
@@ -292,8 +339,22 @@ export const authOptions: NextAuthOptions = {
             // Get or create Drip account - this finds ghost credentials too!
             const dripAccountId = await getOrCreateDripAccountByDiscord(discordId);
 
-            // Create new user
-            user = await createUserWithCredential('discord', discordId, dripAccountId || undefined);
+            // IMPORTANT: Check if a user with this Drip account already exists
+            // This prevents duplicate profiles when user logs in with different credentials
+            if (dripAccountId) {
+              const existingDripUser = await findUserByDripAccount(dripAccountId);
+              if (existingDripUser) {
+                console.log('[Discord Auth] Found existing user with same Drip account, linking credential...');
+                // Link this discord credential to the existing user
+                await addCredentialToUser(existingDripUser.id, 'discord', discordId);
+                user = existingDripUser;
+              }
+            }
+
+            // Only create new user if we didn't find an existing one
+            if (!user) {
+              user = await createUserWithCredential('discord', discordId, dripAccountId || undefined);
+            }
 
             // Link discord credential to Drip account (claims any ghost GRIT)
             if (dripAccountId) {

@@ -67,6 +67,20 @@ interface PinWheelWinner {
   shipping_address: ShippingAddress | null;
 }
 
+interface UserCredential {
+  credential_type: string;
+  identifier: string;
+}
+
+interface SearchedUser {
+  id: string;
+  email: string | null;
+  display_name: string | null;
+  drip_account_id: string | null;
+  created_at: string;
+  credentials: UserCredential[];
+}
+
 const ADMIN_EMAILS = ['josh@shreddingsassy.com', 'admin@shreddingsassy.com', 'josh@sassy.com'];
 const ADMIN_WALLETS = ['0xa1922c47aa67c41b1c1e877e9919f5ef29c99373', '0x659a364365d5fb3f18f2c7b9e038d276ae255375', '0xbc14975811be665cb7b1fb51e972bdb6ae4c1029'];
 
@@ -247,7 +261,7 @@ export default function AdminSubmissions() {
   const [contentRewards, setContentRewards] = useState<Record<string, ContentReward>>({});
   const [viewMultipliers, setViewMultipliers] = useState<ViewMultiplier[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<'submissions' | 'pinwheel'>('submissions');
+  const [activeSection, setActiveSection] = useState<'submissions' | 'pinwheel' | 'users'>('submissions');
   const [activeTab, setActiveTab] = useState<'general' | 'shred'>('general');
   const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
 
@@ -271,6 +285,18 @@ export default function AdminSubmissions() {
   const [pinWheelLoading, setPinWheelLoading] = useState(false);
   const [viewingWinner, setViewingWinner] = useState<PinWheelWinner | null>(null);
   const [togglingShipped, setTogglingShipped] = useState<string | null>(null);
+  const [selectedWinners, setSelectedWinners] = useState<Set<string>>(new Set());
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+
+  // Users management state
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState<SearchedUser[]>([]);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [selectedUsersForMerge, setSelectedUsersForMerge] = useState<SearchedUser[]>([]);
+  const [merging, setMerging] = useState(false);
+  const [mergeResult, setMergeResult] = useState<{ success: boolean; message: string; log?: string[] } | null>(null);
+  const [duplicates, setDuplicates] = useState<{ dripAccountId: string; users: SearchedUser[] }[]>([]);
+  const [duplicatesLoading, setDuplicatesLoading] = useState(false);
 
   // Review modal state
   const [reviewingSubmission, setReviewingSubmission] = useState<Submission | null>(null);
@@ -386,6 +412,162 @@ export default function AdminSubmissions() {
       console.error('Error toggling shipped:', error);
     } finally {
       setTogglingShipped(null);
+    }
+  };
+
+  const toggleSelectWinner = (winnerId: string) => {
+    setSelectedWinners(prev => {
+      const next = new Set(prev);
+      if (next.has(winnerId)) {
+        next.delete(winnerId);
+      } else {
+        next.add(winnerId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedWinners.size === pinWheelWinners.filter(w => !w.shipped).length) {
+      setSelectedWinners(new Set());
+    } else {
+      setSelectedWinners(new Set(pinWheelWinners.filter(w => !w.shipped).map(w => w.id)));
+    }
+  };
+
+  const bulkMarkShipped = async () => {
+    if (selectedWinners.size === 0) return;
+    setBulkUpdating(true);
+    try {
+      await Promise.all(
+        Array.from(selectedWinners).map(winnerId =>
+          fetch('/api/admin/pinwheel-winners', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ winnerId, shipped: true }),
+          })
+        )
+      );
+      // Update local state
+      setPinWheelWinners(winners =>
+        winners.map(w =>
+          selectedWinners.has(w.id) ? { ...w, shipped: true } : w
+        )
+      );
+      setSelectedWinners(new Set());
+    } catch (error) {
+      console.error('Error bulk updating:', error);
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
+
+  // User search
+  const searchUsers = async () => {
+    if (userSearchQuery.length < 3) return;
+    setUserSearchLoading(true);
+    setMergeResult(null);
+    try {
+      const res = await fetch(`/api/admin/users/search?q=${encodeURIComponent(userSearchQuery)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setUserSearchResults(data.users || []);
+      }
+    } catch (error) {
+      console.error('Error searching users:', error);
+    } finally {
+      setUserSearchLoading(false);
+    }
+  };
+
+  // Toggle user selection for merge
+  const toggleUserForMerge = (user: SearchedUser) => {
+    setSelectedUsersForMerge(prev => {
+      const exists = prev.find(u => u.id === user.id);
+      if (exists) {
+        return prev.filter(u => u.id !== user.id);
+      }
+      if (prev.length >= 2) {
+        return [prev[1], user]; // Keep last selected and add new
+      }
+      return [...prev, user];
+    });
+  };
+
+  // Merge users
+  const mergeUsers = async () => {
+    if (selectedUsersForMerge.length !== 2) return;
+    setMerging(true);
+    setMergeResult(null);
+    try {
+      const [keepUser, deleteUser] = selectedUsersForMerge;
+      const res = await fetch('/api/admin/users/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keepUserId: keepUser.id,
+          deleteUserId: deleteUser.id,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMergeResult({ success: true, message: data.message, log: data.log });
+        setSelectedUsersForMerge([]);
+        // Refresh search and duplicates
+        if (userSearchQuery.length >= 3) {
+          searchUsers();
+        }
+        if (duplicates.length > 0) {
+          findDuplicates();
+        }
+      } else {
+        setMergeResult({ success: false, message: data.error, log: data.log });
+      }
+    } catch (error) {
+      console.error('Error merging users:', error);
+      setMergeResult({ success: false, message: 'Failed to merge users' });
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  // Delete user
+  const deleteUser = async (userId: string) => {
+    if (!confirm('Are you sure you want to delete this user? This cannot be undone.')) return;
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        setMergeResult({ success: true, message: data.message, log: data.log });
+        setUserSearchResults(prev => prev.filter(u => u.id !== userId));
+        setSelectedUsersForMerge(prev => prev.filter(u => u.id !== userId));
+        // Also refresh duplicates if showing
+        if (duplicates.length > 0) {
+          findDuplicates();
+        }
+      } else {
+        setMergeResult({ success: false, message: data.error });
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      setMergeResult({ success: false, message: 'Failed to delete user' });
+    }
+  };
+
+  // Find duplicate profiles
+  const findDuplicates = async () => {
+    setDuplicatesLoading(true);
+    setMergeResult(null);
+    try {
+      const res = await fetch('/api/admin/users/duplicates');
+      if (res.ok) {
+        const data = await res.json();
+        setDuplicates(data.duplicates || []);
+      }
+    } catch (error) {
+      console.error('Error finding duplicates:', error);
+    } finally {
+      setDuplicatesLoading(false);
     }
   };
 
@@ -538,6 +720,16 @@ export default function AdminSubmissions() {
             }`}
           >
             Pin Wheel
+          </button>
+          <button
+            onClick={() => setActiveSection('users')}
+            className={`px-5 py-2.5 rounded-lg font-semibold transition-colors ${
+              activeSection === 'users'
+                ? 'bg-gold text-purple-darker'
+                : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+          >
+            Users
           </button>
         </div>
 
@@ -717,7 +909,7 @@ export default function AdminSubmissions() {
         {activeSection === 'pinwheel' && (
           <>
             {/* Sub Tabs */}
-            <div className="flex gap-4 mb-6">
+            <div className="flex gap-4 mb-6 flex-wrap items-center">
               <button
                 onClick={() => setPinWheelTab('entries')}
                 className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
@@ -738,6 +930,24 @@ export default function AdminSubmissions() {
               >
                 Winners ({pinWheelWinners.length})
               </button>
+
+              {/* Export buttons */}
+              <div className="ml-auto flex gap-2">
+                <a
+                  href="/api/admin/pinwheel-winners/export?shipped=false&hasAddress=true"
+                  className="px-4 py-2 bg-gold text-purple-darker rounded-lg font-semibold hover:bg-gold/90 transition-colors text-sm"
+                  download
+                >
+                  Export Ready to Ship (CSV)
+                </a>
+                <a
+                  href="/api/admin/pinwheel-winners/export?shipped=false"
+                  className="px-4 py-2 bg-white/10 text-white rounded-lg font-semibold hover:bg-white/20 transition-colors text-sm"
+                  download
+                >
+                  Export All Unshipped (CSV)
+                </a>
+              </div>
             </div>
 
             {pinWheelLoading ? (
@@ -788,64 +998,355 @@ export default function AdminSubmissions() {
                     No winners yet.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[800px]">
-                      <thead>
-                        <tr className="border-b border-white/10">
-                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Date</th>
-                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">User</th>
-                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Wallet</th>
-                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Prize</th>
-                          <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Shipped</th>
-                          <th className="text-right text-white/50 text-sm font-medium px-4 py-3">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pinWheelWinners.map((winner) => (
-                          <tr key={winner.id} className="border-b border-white/5 hover:bg-white/5">
-                            <td className="text-white/70 text-sm px-4 py-3">
-                              {new Date(winner.date_won).toLocaleDateString()}
-                            </td>
-                            <td className="text-white text-sm px-4 py-3">
-                              {winner.member_name || winner.user_email || '-'}
-                            </td>
-                            <td className="text-white/50 text-sm px-4 py-3 font-mono">
-                              {winner.identifier_type === 'wallet'
-                                ? truncateWallet(winner.wallet_address)
-                                : `ID: ${winner.wallet_address.slice(0, 8)}...`}
-                            </td>
-                            <td className="text-gold text-sm px-4 py-3 font-medium">
-                              {winner.pin_won}
-                            </td>
-                            <td className="text-sm px-4 py-3">
-                              <button
-                                onClick={() => toggleShipped(winner.id, winner.shipped)}
-                                disabled={togglingShipped === winner.id}
-                                className={`px-2 py-1 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity ${
-                                  winner.shipped
-                                    ? 'bg-green-500/20 text-green-400'
-                                    : 'bg-yellow-500/20 text-yellow-400'
-                                } ${togglingShipped === winner.id ? 'opacity-50' : ''}`}
-                              >
-                                {togglingShipped === winner.id ? '...' : winner.shipped ? 'Shipped' : 'Pending'}
-                              </button>
-                            </td>
-                            <td className="text-right px-4 py-3">
-                              <button
-                                onClick={() => setViewingWinner(winner)}
-                                className="text-gold text-sm hover:underline"
-                              >
-                                View Details
-                              </button>
-                            </td>
+                  <>
+                    {selectedWinners.size > 0 && (
+                      <div className="p-3 bg-gold/10 border-b border-gold/20 flex items-center justify-between">
+                        <span className="text-white text-sm">{selectedWinners.size} selected</span>
+                        <button
+                          onClick={bulkMarkShipped}
+                          disabled={bulkUpdating}
+                          className="px-4 py-1.5 bg-green-600 hover:bg-green-500 text-white text-sm rounded-lg font-medium disabled:opacity-50"
+                        >
+                          {bulkUpdating ? 'Updating...' : 'Mark Selected as Shipped'}
+                        </button>
+                      </div>
+                    )}
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[800px]">
+                        <thead>
+                          <tr className="border-b border-white/10">
+                            <th className="text-left text-white/50 text-sm font-medium px-4 py-3 w-10">
+                              <input
+                                type="checkbox"
+                                checked={selectedWinners.size === pinWheelWinners.filter(w => !w.shipped).length && pinWheelWinners.filter(w => !w.shipped).length > 0}
+                                onChange={toggleSelectAll}
+                                className="rounded border-white/30"
+                              />
+                            </th>
+                            <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Date</th>
+                            <th className="text-left text-white/50 text-sm font-medium px-4 py-3">User</th>
+                            <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Wallet</th>
+                            <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Prize</th>
+                            <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Address</th>
+                            <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Shipped</th>
+                            <th className="text-right text-white/50 text-sm font-medium px-4 py-3">Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {pinWheelWinners.map((winner) => (
+                            <tr key={winner.id} className={`border-b border-white/5 hover:bg-white/5 ${selectedWinners.has(winner.id) ? 'bg-gold/5' : ''}`}>
+                              <td className="px-4 py-3">
+                                {!winner.shipped && (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedWinners.has(winner.id)}
+                                    onChange={() => toggleSelectWinner(winner.id)}
+                                    className="rounded border-white/30"
+                                  />
+                                )}
+                              </td>
+                              <td className="text-white/70 text-sm px-4 py-3">
+                                {new Date(winner.date_won).toLocaleDateString()}
+                              </td>
+                              <td className="text-white text-sm px-4 py-3">
+                                {winner.member_name || winner.user_email || '-'}
+                              </td>
+                              <td className="text-white/50 text-sm px-4 py-3 font-mono">
+                                {winner.identifier_type === 'wallet'
+                                  ? truncateWallet(winner.wallet_address)
+                                  : `ID: ${winner.wallet_address.slice(0, 8)}...`}
+                              </td>
+                              <td className="text-gold text-sm px-4 py-3 font-medium">
+                                {winner.pin_won}
+                              </td>
+                              <td className="text-sm px-4 py-3">
+                                {winner.shipping_address ? (
+                                  <span className="text-green-400">Yes</span>
+                                ) : (
+                                  <span className="text-red-400">No</span>
+                                )}
+                              </td>
+                              <td className="text-sm px-4 py-3">
+                                <button
+                                  onClick={() => toggleShipped(winner.id, winner.shipped)}
+                                  disabled={togglingShipped === winner.id}
+                                  className={`px-2 py-1 rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                                    winner.shipped
+                                      ? 'bg-green-500/20 text-green-400'
+                                      : 'bg-yellow-500/20 text-yellow-400'
+                                  } ${togglingShipped === winner.id ? 'opacity-50' : ''}`}
+                                >
+                                  {togglingShipped === winner.id ? '...' : winner.shipped ? 'Shipped' : 'Pending'}
+                                </button>
+                              </td>
+                              <td className="text-right px-4 py-3">
+                                <button
+                                  onClick={() => setViewingWinner(winner)}
+                                  className="text-gold text-sm hover:underline"
+                                >
+                                  View Details
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </div>
             )}
+          </>
+        )}
+
+        {/* Users Section */}
+        {activeSection === 'users' && (
+          <>
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-white mb-4">User Management</h2>
+              <p className="text-white/50 text-sm mb-4">Search for users by email, wallet, or display name. Select two users to merge them.</p>
+
+              {/* Search */}
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && searchUsers()}
+                  placeholder="Search by email, wallet, or name (min 3 chars)"
+                  className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
+                />
+                <button
+                  onClick={searchUsers}
+                  disabled={userSearchLoading || userSearchQuery.length < 3}
+                  className="px-6 py-2 bg-gold text-purple-darker rounded-lg font-semibold disabled:opacity-50"
+                >
+                  {userSearchLoading ? '...' : 'Search'}
+                </button>
+              </div>
+
+              {/* Merge Result */}
+              {mergeResult && (
+                <div className={`p-4 rounded-lg mb-4 ${mergeResult.success ? 'bg-green-500/20 border border-green-500/30' : 'bg-red-500/20 border border-red-500/30'}`}>
+                  <p className={`font-semibold ${mergeResult.success ? 'text-green-400' : 'text-red-400'}`}>
+                    {mergeResult.message}
+                  </p>
+                  {mergeResult.log && (
+                    <ul className="mt-2 text-sm text-white/70">
+                      {mergeResult.log.map((item, i) => (
+                        <li key={i}>- {item}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {/* Merge Controls */}
+              {selectedUsersForMerge.length === 2 && (
+                <div className="p-4 bg-gold/10 border border-gold/20 rounded-lg mb-4">
+                  <p className="text-white text-sm mb-3">
+                    Merge: <strong>{selectedUsersForMerge[1].email || selectedUsersForMerge[1].display_name || selectedUsersForMerge[1].id.slice(0, 8)}</strong>
+                    {' → into → '}
+                    <strong>{selectedUsersForMerge[0].email || selectedUsersForMerge[0].display_name || selectedUsersForMerge[0].id.slice(0, 8)}</strong>
+                  </p>
+                  <p className="text-white/50 text-xs mb-3">
+                    The second selected user will be deleted. All credentials and data will be moved to the first user.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={mergeUsers}
+                      disabled={merging}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-semibold disabled:opacity-50"
+                    >
+                      {merging ? 'Merging...' : 'Confirm Merge'}
+                    </button>
+                    <button
+                      onClick={() => setSelectedUsersForMerge([])}
+                      className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Search Results */}
+            {userSearchResults.length > 0 && (
+              <div className="card-premium rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[700px]">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="text-left text-white/50 text-sm font-medium px-4 py-3 w-10">Select</th>
+                        <th className="text-left text-white/50 text-sm font-medium px-4 py-3">User</th>
+                        <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Credentials</th>
+                        <th className="text-left text-white/50 text-sm font-medium px-4 py-3">Created</th>
+                        <th className="text-right text-white/50 text-sm font-medium px-4 py-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {userSearchResults.map((user) => {
+                        const isSelected = selectedUsersForMerge.some(u => u.id === user.id);
+                        const selectionIndex = selectedUsersForMerge.findIndex(u => u.id === user.id);
+                        return (
+                          <tr key={user.id} className={`border-b border-white/5 hover:bg-white/5 ${isSelected ? 'bg-gold/10' : ''}`}>
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleUserForMerge(user)}
+                                className="rounded border-white/30"
+                              />
+                              {isSelected && (
+                                <span className="ml-2 text-xs text-gold">
+                                  {selectionIndex === 0 ? 'Keep' : 'Delete'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-white text-sm font-medium">
+                                {user.display_name || user.email || 'No name'}
+                              </p>
+                              {user.email && user.display_name && (
+                                <p className="text-white/50 text-xs">{user.email}</p>
+                              )}
+                              <p className="text-white/30 text-xs font-mono">{user.id.slice(0, 12)}...</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {user.credentials.map((cred, i) => (
+                                  <span
+                                    key={i}
+                                    className={`px-2 py-0.5 rounded text-xs ${
+                                      cred.credential_type === 'wallet' ? 'bg-blue-500/20 text-blue-400' :
+                                      cred.credential_type === 'discord' ? 'bg-purple-500/20 text-purple-400' :
+                                      'bg-green-500/20 text-green-400'
+                                    }`}
+                                    title={cred.identifier}
+                                  >
+                                    {cred.credential_type === 'wallet' ? truncateWallet(cred.identifier) :
+                                     cred.credential_type === 'email' ? truncateEmail(cred.identifier) :
+                                     cred.credential_type}
+                                  </span>
+                                ))}
+                                {user.credentials.length === 0 && (
+                                  <span className="text-white/30 text-xs">No credentials</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-white/50 text-sm">
+                              {new Date(user.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <button
+                                onClick={() => deleteUser(user.id)}
+                                className="text-red-400 text-sm hover:underline"
+                              >
+                                Delete
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {userSearchQuery.length >= 3 && userSearchResults.length === 0 && !userSearchLoading && (
+              <div className="card-premium rounded-xl p-8 text-center text-white/50">
+                No users found matching &quot;{userSearchQuery}&quot;
+              </div>
+            )}
+
+            {/* Find Duplicates Section */}
+            <div className="mt-8 pt-8 border-t border-white/10">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Find Duplicate Profiles</h3>
+                  <p className="text-white/50 text-sm">Find users that share the same Drip account (likely duplicates)</p>
+                </div>
+                <button
+                  onClick={findDuplicates}
+                  disabled={duplicatesLoading}
+                  className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold disabled:opacity-50"
+                >
+                  {duplicatesLoading ? 'Scanning...' : 'Scan for Duplicates'}
+                </button>
+              </div>
+
+              {duplicates.length > 0 && (
+                <div className="space-y-4">
+                  <p className="text-gold text-sm font-medium">Found {duplicates.length} duplicate group{duplicates.length > 1 ? 's' : ''}</p>
+                  {duplicates.map((group) => (
+                    <div key={group.dripAccountId} className="card-premium rounded-xl p-4 border border-yellow-500/20">
+                      <p className="text-white/50 text-xs mb-3 font-mono">Drip Account: {group.dripAccountId}</p>
+                      <div className="space-y-2">
+                        {group.users.map((user, idx) => (
+                          <div key={user.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                            <div className="flex items-center gap-4">
+                              <span className="text-white/30 text-sm">#{idx + 1}</span>
+                              <div>
+                                <p className="text-white text-sm font-medium">
+                                  {user.display_name || user.email || 'No name'}
+                                </p>
+                                {user.email && user.display_name && (
+                                  <p className="text-white/50 text-xs">{user.email}</p>
+                                )}
+                                <p className="text-white/30 text-xs font-mono">{user.id.slice(0, 12)}...</p>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {user.credentials.map((cred, i) => (
+                                  <span
+                                    key={i}
+                                    className={`px-2 py-0.5 rounded text-xs ${
+                                      cred.credential_type === 'wallet' ? 'bg-blue-500/20 text-blue-400' :
+                                      cred.credential_type === 'discord' ? 'bg-purple-500/20 text-purple-400' :
+                                      'bg-green-500/20 text-green-400'
+                                    }`}
+                                    title={cred.identifier}
+                                  >
+                                    {cred.credential_type === 'wallet' ? truncateWallet(cred.identifier) :
+                                     cred.credential_type === 'email' ? truncateEmail(cred.identifier) :
+                                     cred.credential_type}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  // Select both users for merge, this one as the one to keep
+                                  const otherUser = group.users.find(u => u.id !== user.id);
+                                  if (otherUser) {
+                                    setSelectedUsersForMerge([user, otherUser]);
+                                  }
+                                }}
+                                className="text-gold text-xs hover:underline"
+                              >
+                                Keep This
+                              </button>
+                              <button
+                                onClick={() => deleteUser(user.id)}
+                                className="text-red-400 text-xs hover:underline"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!duplicatesLoading && duplicates.length === 0 && (
+                <div className="text-white/30 text-sm">Click &quot;Scan for Duplicates&quot; to find duplicate profiles</div>
+              )}
+            </div>
           </>
         )}
       </section>
