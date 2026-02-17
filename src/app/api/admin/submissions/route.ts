@@ -4,8 +4,9 @@ import { createServerClient } from '@/lib/supabase';
 
 // Content type rewards mapping
 export const CONTENT_REWARDS = {
-  'photo': { label: 'Photo post', base: 25 },
-  'short_video': { label: 'Short video (<60s)', base: 150 },
+  'x_post': { label: 'X post', base: 5 },
+  'photo': { label: 'Product photo post', base: 50 },
+  'short_video': { label: 'Short video with product', base: 150 },
   'thread': { label: 'X thread / article', base: 100 },
   'space': { label: 'X Space (hosting)', base: 100 },
   'unboxing': { label: 'Unboxing / styling video', base: 300 },
@@ -14,8 +15,8 @@ export const CONTENT_REWARDS = {
 
 // View multipliers
 export const VIEW_MULTIPLIERS = [
-  { min: 0, max: 999, multiplier: 1, label: 'Under 1k' },
-  { min: 1000, max: 4999, multiplier: 1.5, label: '1k - 5k' },
+  { min: 0, max: 1999, multiplier: 1, label: 'Under 2k' },
+  { min: 2000, max: 4999, multiplier: 1.5, label: '2k - 5k' },
   { min: 5000, max: 19999, multiplier: 2, label: '5k - 20k' },
   { min: 20000, max: Infinity, multiplier: 2.5, label: '20k+' },
 ];

@@ -20,7 +20,7 @@ const faqs: FAQItem[] = [
   },
   {
     question: 'How much GRIT do I earn per content submission?',
-    answer: 'Base rewards vary by content type: Photo posts (25), Short videos under 60s (150), X threads or articles (100), Hosting X Spaces (100), Unboxing or styling videos (300), Long-form videos 3+ minutes (400). These base amounts are then multiplied based on views: under 1k (1x), 1k-5k (1.5x), 5k-20k (2x), 20k+ (2.5x). View multipliers apply to all content except X Spaces.',
+    answer: 'Base rewards vary by content type: X posts (5), Product photo posts (50), Short videos with product (150), X threads or articles (100), Hosting X Spaces (100), Unboxing or styling videos (300), Long-form videos 10+ minutes (400). These base amounts are then multiplied based on views: under 2k (1x), 2k-5k (1.5x), 5k-20k (2x), 20k+ (2.5x). View multipliers apply to all content except X Spaces.',
   },
   {
     question: 'What content should I submit?',

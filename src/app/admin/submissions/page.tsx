@@ -1560,7 +1560,7 @@ export default function AdminSubmissions() {
                     className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
                   />
                   <p className="text-white/30 text-xs mt-1">
-                    Multipliers: 1k-5k (1.5x), 5k-20k (2x), 20k+ (2.5x)
+                    Multipliers: 2k-5k (1.5x), 5k-20k (2x), 20k+ (2.5x)
                   </p>
                 </div>
 

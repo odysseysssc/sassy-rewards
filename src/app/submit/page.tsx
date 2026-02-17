@@ -138,11 +138,15 @@ export default function Submit() {
               <h3 className="text-white/40 text-sm font-semibold uppercase tracking-wide mb-4">Base Rewards</h3>
               <div className="space-y-3 text-base">
                 <div className="flex justify-between">
-                  <span className="text-white/70">Photo post</span>
-                  <span className="text-gold font-semibold">25</span>
+                  <span className="text-white/70">X post</span>
+                  <span className="text-gold font-semibold">5</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-white/70">Short video (&lt;60s)</span>
+                  <span className="text-white/70">Product photo post</span>
+                  <span className="text-gold font-semibold">50</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/70">Short video with product</span>
                   <span className="text-gold font-semibold">150</span>
                 </div>
                 <div className="flex justify-between">
@@ -169,11 +173,11 @@ export default function Submit() {
               <h3 className="text-white/40 text-sm font-semibold uppercase tracking-wide mb-4">View Multipliers</h3>
               <div className="space-y-3 text-base">
                 <div className="flex justify-between">
-                  <span className="text-white/70">Under 1k</span>
+                  <span className="text-white/70">Under 2k</span>
                   <span className="text-white font-semibold">1x</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-white/70">1k - 5k</span>
+                  <span className="text-white/70">2k - 5k</span>
                   <span className="text-gold font-semibold">1.5x</span>
                 </div>
                 <div className="flex justify-between">
@@ -193,7 +197,7 @@ export default function Submit() {
         {/* Examples */}
         <div className="text-white/50 text-sm space-y-1.5 mb-8">
           <p>Unboxing video hits 8k views = 300 x 2 = <span className="text-gold">600 GRIT</span></p>
-          <p>X thread goes viral at 25k views = 100 x 2.5 = <span className="text-gold">250 GRIT</span></p>
+          <p>Product photo gets 3k views = 50 x 1.5 = <span className="text-gold">75 GRIT</span></p>
         </div>
 
         {/* Submit Form */}
