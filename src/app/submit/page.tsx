@@ -13,12 +13,14 @@ interface Submission {
   grit_awarded: number;
   submitted_at: string;
   review_note: string | null;
+  submission_type: 'general' | 'shred';
 }
 
 export default function Submit() {
   const { data: session, status: sessionStatus } = useSession();
 
   const [contentUrl, setContentUrl] = useState('');
+  const [isShredTheFeed, setIsShredTheFeed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -33,7 +35,7 @@ export default function Submit() {
         return;
       }
       try {
-        const res = await fetch('/api/submissions?type=general');
+        const res = await fetch('/api/submissions');
         if (res.ok) {
           const data = await res.json();
           setSubmissions(data.submissions || []);
@@ -56,7 +58,10 @@ export default function Submit() {
       const res = await fetch('/api/submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contentUrl }),
+        body: JSON.stringify({
+          contentUrl,
+          submissionType: isShredTheFeed ? 'shred' : 'general'
+        }),
       });
 
       if (res.ok) {
@@ -64,6 +69,7 @@ export default function Submit() {
         setSuccess(true);
         setSubmissions([data.submission, ...submissions]);
         setContentUrl('');
+        setIsShredTheFeed(false);
         setTimeout(() => setSuccess(false), 3000);
       } else {
         const data = await res.json();
@@ -209,7 +215,7 @@ export default function Submit() {
               </div>
             )}
 
-            <div className="flex gap-4">
+            <div className="flex gap-4 mb-4">
               <input
                 type="url"
                 value={contentUrl}
@@ -226,6 +232,26 @@ export default function Submit() {
                 {submitting ? '...' : 'Submit'}
               </button>
             </div>
+
+            {/* Shred the Feed Toggle */}
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={isShredTheFeed}
+                  onChange={(e) => setIsShredTheFeed(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-white/10 rounded-full peer peer-checked:bg-gold/30 transition-colors"></div>
+                <div className="absolute left-1 top-1 w-4 h-4 bg-white/50 rounded-full peer-checked:translate-x-5 peer-checked:bg-gold transition-all"></div>
+              </div>
+              <span className="text-white/70 group-hover:text-white transition-colors">
+                This is a <span className="text-gold font-semibold">Shred the Feed</span> entry
+              </span>
+              <Link href="/shred-the-feed" className="text-gold/70 hover:text-gold text-sm underline ml-1">
+                What&apos;s this?
+              </Link>
+            </label>
 
             {error && <p className="text-red-400 text-base mt-3">{error}</p>}
           </form>
@@ -259,15 +285,22 @@ export default function Submit() {
             <div className="space-y-3">
               {submissions.slice(0, 5).map((sub) => (
                 <div key={sub.id} className="flex items-center justify-between py-3 text-base">
-                  <a
-                    href={sub.content_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-white/60 hover:text-white truncate flex-1 mr-4"
-                  >
-                    {sub.content_url}
-                  </a>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 flex-1 min-w-0 mr-4">
+                    {sub.submission_type === 'shred' && (
+                      <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 text-[10px] font-bold rounded shrink-0">
+                        STF
+                      </span>
+                    )}
+                    <a
+                      href={sub.content_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-white/60 hover:text-white truncate"
+                    >
+                      {sub.content_url}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0">
                     <StatusBadge status={sub.status} />
                     {sub.status === 'approved' && sub.grit_awarded > 0 && (
                       <span className="text-green-400 text-sm">+{sub.grit_awarded}</span>

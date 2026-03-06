@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
+import { ALL_AWARD_PINS } from '@/lib/constants';
 
 interface Submission {
   id: string;
@@ -65,6 +66,7 @@ interface PinWheelWinner {
   user_email: string | null;
   shipped: boolean;
   shipping_address: ShippingAddress | null;
+  source?: 'pinwheel' | 'golden_ticket' | null;
 }
 
 interface UserCredential {
@@ -293,6 +295,7 @@ export default function AdminSubmissions() {
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [userSearchResults, setUserSearchResults] = useState<SearchedUser[]>([]);
   const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [selectedUsersForMerge, setSelectedUsersForMerge] = useState<SearchedUser[]>([]);
   const [merging, setMerging] = useState(false);
   const [mergeResult, setMergeResult] = useState<{ success: boolean; message: string; log?: string[] } | null>(null);
@@ -305,6 +308,11 @@ export default function AdminSubmissions() {
   const [gritAdjustAmount, setGritAdjustAmount] = useState<number>(0);
   const [gritAdjustReason, setGritAdjustReason] = useState('');
   const [gritAdjusting, setGritAdjusting] = useState(false);
+
+  // Award Pin modal state (Golden Ticket)
+  const [awardingPinUser, setAwardingPinUser] = useState<SearchedUser | null>(null);
+  const [selectedPin, setSelectedPin] = useState<string>('');
+  const [awardingPin, setAwardingPin] = useState(false);
 
   // Review modal state
   const [reviewingSubmission, setReviewingSubmission] = useState<Submission | null>(null);
@@ -471,22 +479,40 @@ export default function AdminSubmissions() {
   };
 
   // User search
-  const searchUsers = async () => {
-    if (userSearchQuery.length < 3) return;
+  const searchUsers = useCallback(async (query: string) => {
+    if (query.length < 3) {
+      setUserSearchResults([]);
+      setHasSearched(false);
+      return;
+    }
     setUserSearchLoading(true);
     setMergeResult(null);
     try {
-      const res = await fetch(`/api/admin/users/search?q=${encodeURIComponent(userSearchQuery)}`);
+      const res = await fetch(`/api/admin/users/search?q=${encodeURIComponent(query)}`);
       if (res.ok) {
         const data = await res.json();
         setUserSearchResults(data.users || []);
+        setHasSearched(true);
       }
     } catch (error) {
       console.error('Error searching users:', error);
     } finally {
       setUserSearchLoading(false);
     }
-  };
+  }, []);
+
+  // Debounced auto-search
+  useEffect(() => {
+    if (userSearchQuery.length < 3) {
+      setUserSearchResults([]);
+      setHasSearched(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      searchUsers(userSearchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [userSearchQuery, searchUsers]);
 
   // Toggle user selection for merge
   const toggleUserForMerge = (user: SearchedUser) => {
@@ -598,6 +624,35 @@ export default function AdminSubmissions() {
       setMergeResult({ success: false, message: 'Failed to adjust GRIT' });
     } finally {
       setGritAdjusting(false);
+    }
+  };
+
+  // Award pin to user (Golden Ticket)
+  const awardPin = async () => {
+    if (!awardingPinUser || !selectedPin) return;
+    setAwardingPin(true);
+    try {
+      const res = await fetch(`/api/admin/users/${awardingPinUser.id}/pins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinName: selectedPin }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMergeResult({
+          success: true,
+          message: `Awarded "${selectedPin}" pin to ${awardingPinUser.display_name || awardingPinUser.email || 'user'} as Golden Ticket win`,
+        });
+        setAwardingPinUser(null);
+        setSelectedPin('');
+      } else {
+        setMergeResult({ success: false, message: data.error });
+      }
+    } catch (error) {
+      console.error('Error awarding pin:', error);
+      setMergeResult({ success: false, message: 'Failed to award pin' });
+    } finally {
+      setAwardingPin(false);
     }
   };
 
@@ -1159,8 +1214,13 @@ export default function AdminSubmissions() {
                                   ? truncateWallet(winner.wallet_address)
                                   : `ID: ${winner.wallet_address.slice(0, 8)}...`}
                               </td>
-                              <td className="text-gold text-sm px-4 py-3 font-medium">
-                                {winner.pin_won}
+                              <td className="text-sm px-4 py-3">
+                                <span className="text-gold font-medium">{winner.pin_won}</span>
+                                {winner.source === 'golden_ticket' && (
+                                  <span className="ml-2 px-1.5 py-0.5 bg-gradient-to-r from-yellow-500 to-amber-500 text-purple-darker text-[10px] font-bold rounded">
+                                    GOLDEN TICKET
+                                  </span>
+                                )}
                               </td>
                               <td className="text-sm px-4 py-3">
                                 {winner.shipping_address ? (
@@ -1215,17 +1275,14 @@ export default function AdminSubmissions() {
                   type="text"
                   value={userSearchQuery}
                   onChange={(e) => setUserSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && searchUsers()}
                   placeholder="Search by email, wallet, or name (min 3 chars)"
                   className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-gold/50"
                 />
-                <button
-                  onClick={searchUsers}
-                  disabled={userSearchLoading || userSearchQuery.length < 3}
-                  className="px-6 py-2 bg-gold text-purple-darker rounded-lg font-semibold disabled:opacity-50"
-                >
-                  {userSearchLoading ? '...' : 'Search'}
-                </button>
+                {userSearchLoading && (
+                  <div className="px-4 py-2 text-white/50 text-sm flex items-center">
+                    Searching...
+                  </div>
+                )}
               </div>
 
               {/* Merge Result */}
@@ -1360,6 +1417,16 @@ export default function AdminSubmissions() {
                                   GRIT
                                 </button>
                                 <button
+                                  onClick={() => {
+                                    setAwardingPinUser(user);
+                                    setSelectedPin('');
+                                  }}
+                                  className="text-amber-400 text-sm hover:underline"
+                                  title="Award pin (Golden Ticket)"
+                                >
+                                  Pin
+                                </button>
+                                <button
                                   onClick={() => deleteUser(user.id)}
                                   className="text-red-400 text-sm hover:underline"
                                 >
@@ -1376,7 +1443,7 @@ export default function AdminSubmissions() {
               </div>
             )}
 
-            {userSearchQuery.length >= 3 && userSearchResults.length === 0 && !userSearchLoading && (
+            {hasSearched && userSearchResults.length === 0 && !userSearchLoading && (
               <div className="card-premium rounded-xl p-8 text-center text-white/50">
                 No users found matching &quot;{userSearchQuery}&quot;
               </div>
@@ -1733,7 +1800,14 @@ export default function AdminSubmissions() {
 
               <div>
                 <label className="text-white/50 text-sm block mb-1">Prize</label>
-                <p className="text-gold font-semibold">{viewingWinner.pin_won}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-gold font-semibold">{viewingWinner.pin_won}</p>
+                  {viewingWinner.source === 'golden_ticket' && (
+                    <span className="px-1.5 py-0.5 bg-gradient-to-r from-yellow-500 to-amber-500 text-purple-darker text-[10px] font-bold rounded">
+                      GOLDEN TICKET
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -1878,6 +1952,58 @@ export default function AdminSubmissions() {
               </button>
               <button
                 onClick={() => setAdjustingGritUser(null)}
+                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Award Pin Modal (Golden Ticket) */}
+      {awardingPinUser && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="card-premium rounded-2xl p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold text-white mb-1">Award Pin</h2>
+            <p className="text-amber-400 text-sm mb-4">Golden Ticket Winner</p>
+
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">User</label>
+              <p className="text-white font-medium">
+                {awardingPinUser.display_name || awardingPinUser.email || 'Unknown'}
+              </p>
+              {awardingPinUser.display_name && awardingPinUser.email && (
+                <p className="text-white/50 text-xs">{awardingPinUser.email}</p>
+              )}
+            </div>
+
+            <div className="mb-6">
+              <label className="text-white/50 text-sm block mb-2">Select Pin</label>
+              <select
+                value={selectedPin}
+                onChange={(e) => setSelectedPin(e.target.value)}
+                className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-gold/50"
+              >
+                <option value="" className="bg-purple-darker">Choose a pin...</option>
+                {ALL_AWARD_PINS.map((pin) => (
+                  <option key={pin.name} value={pin.name} className="bg-purple-darker">
+                    {pin.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={awardPin}
+                disabled={awardingPin || !selectedPin}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-purple-darker rounded-lg font-semibold disabled:opacity-50 transition-colors"
+              >
+                {awardingPin ? 'Awarding...' : 'Award Pin'}
+              </button>
+              <button
+                onClick={() => setAwardingPinUser(null)}
                 className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
               >
                 Cancel

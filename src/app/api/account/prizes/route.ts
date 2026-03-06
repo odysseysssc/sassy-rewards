@@ -29,7 +29,7 @@ export async function GET() {
     // Get prizes won by this wallet
     const { data: prizes, error } = await supabase
       .from('pinwheel_winners')
-      .select('id, date_won, pin_won, shipped')
+      .select('id, date_won, pin_won, shipped, source')
       .eq('wallet_address', walletCred.identifier.toLowerCase())
       .order('date_won', { ascending: false });
 

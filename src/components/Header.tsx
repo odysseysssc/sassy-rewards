@@ -145,6 +145,12 @@ export function Header() {
           >
             Submit Content
           </Link>
+          <Link
+            href="/raffle"
+            className="text-white hover:text-gold text-base font-semibold transition-colors"
+          >
+            Pin Wheel
+          </Link>
           {isAdmin && (
             <Link
               href="/admin/submissions"
@@ -174,13 +180,6 @@ export function Header() {
               <div className="absolute right-0 mt-2 w-44 card-premium rounded-xl z-50 overflow-hidden">
                 <nav className="p-3 flex flex-col">
                   {/* Page Links */}
-                  <Link
-                    href="/raffle"
-                    onClick={() => setShowMobileMenu(false)}
-                    className="text-white hover:text-gold py-2 text-sm font-semibold transition-colors"
-                  >
-                    Pin Wheel
-                  </Link>
                   <Link
                     href="/shred-the-feed"
                     onClick={() => setShowMobileMenu(false)}
@@ -241,7 +240,7 @@ export function Header() {
                     Instagram
                   </a>
                   <a
-                    href="https://discord.gg/shreddingsassy"
+                    href="https://discord.gg/sassy"
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setShowMobileMenu(false)}

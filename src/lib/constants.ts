@@ -75,6 +75,28 @@ export const PINS = [
   { name: 'Surf Sassy', image: '/images/surf sassy.png' },
 ] as const;
 
+// Additional pins available for Golden Ticket awards only (not on pin wheel yet)
+export const GOLDEN_TICKET_PINS = [
+  { name: 'Chalet', image: '/images/new pins /Chalet.png' },
+  { name: 'Dolomites', image: '/images/new pins /Dolomites.png' },
+  { name: 'Fingers Crossed', image: '/images/new pins /Fingers Crossed.png' },
+  { name: 'Fist Left', image: '/images/new pins /Fist Left.png' },
+  { name: 'Fist Right', image: '/images/new pins /Fist Right.png' },
+  { name: 'Goggles', image: '/images/new pins /Goggles.png' },
+  { name: 'Gondola', image: '/images/new pins /Gondola.png' },
+  { name: 'Hands Up', image: '/images/new pins /Hands Up.png' },
+  { name: 'OK', image: '/images/new pins /OK.png' },
+  { name: 'Peace', image: '/images/new pins /Peace .png' },
+  { name: 'Pray', image: '/images/new pins /Pray.png' },
+  { name: 'Shaka', image: '/images/new pins /Shaka.png' },
+  { name: 'Snow Pine', image: '/images/new pins /Snow Pine.png' },
+  { name: 'Stars and Stripes', image: '/images/new pins /Stars and Stripes.png' },
+  { name: 'Union Jack', image: '/images/new pins /Union Jack.png' },
+] as const;
+
+// All pins available for Golden Ticket awards
+export const ALL_AWARD_PINS = [...PINS, ...GOLDEN_TICKET_PINS];
+
 export const NAV_LINKS = [
   { href: '/', label: 'Collector Dashboard' },
   { href: '/purgatory', label: 'Purgatory' },

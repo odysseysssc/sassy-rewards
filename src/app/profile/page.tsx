@@ -8,13 +8,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { truncateWallet } from '@/lib/drip';
-import { PINS } from '@/lib/constants';
+import { ALL_AWARD_PINS } from '@/lib/constants';
 import Link from 'next/link';
 import Image from 'next/image';
 
 // Helper to get pin image by name
 function getPinImage(pinName: string): string {
-  const pin = PINS.find(p => p.name.toLowerCase() === pinName.toLowerCase());
+  const pin = ALL_AWARD_PINS.find(p => p.name.toLowerCase() === pinName.toLowerCase());
   return pin?.image || '/images/pin.webp';
 }
 
@@ -58,6 +58,7 @@ interface Prize {
   date_won: string;
   pin_won: string;
   shipped: boolean;
+  source?: 'pinwheel' | 'golden_ticket' | null;
 }
 
 function ProfileContent() {
@@ -879,7 +880,14 @@ function ProfileContent() {
                       />
                     </div>
                     <div>
-                      <p className="text-gold font-semibold text-sm">{prize.pin_won}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-gold font-semibold text-sm">{prize.pin_won}</p>
+                        {prize.source === 'golden_ticket' && (
+                          <span className="px-1.5 py-0.5 bg-gradient-to-r from-yellow-500 to-amber-500 text-purple-darker text-[10px] font-bold rounded">
+                            GOLDEN TICKET
+                          </span>
+                        )}
+                      </div>
                       <p className="text-white/30 text-xs">Won {new Date(prize.date_won).toLocaleDateString()}</p>
                     </div>
                   </div>
