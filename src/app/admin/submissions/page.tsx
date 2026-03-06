@@ -549,7 +549,7 @@ export default function AdminSubmissions() {
         setSelectedUsersForMerge([]);
         // Refresh search and duplicates
         if (userSearchQuery.length >= 3) {
-          searchUsers();
+          searchUsers(userSearchQuery);
         }
         if (duplicates.length > 0) {
           findDuplicates();
