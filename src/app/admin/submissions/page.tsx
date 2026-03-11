@@ -314,6 +314,20 @@ export default function AdminSubmissions() {
   const [selectedPin, setSelectedPin] = useState<string>('');
   const [awardingPin, setAwardingPin] = useState(false);
 
+  // View User Details modal state
+  const [viewingUserDetails, setViewingUserDetails] = useState<SearchedUser | null>(null);
+  const [userDetailsLoading, setUserDetailsLoading] = useState(false);
+  const [userAddress, setUserAddress] = useState<{
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    zip: string | null;
+    country: string | null;
+  } | null>(null);
+
   // Review modal state
   const [reviewingSubmission, setReviewingSubmission] = useState<Submission | null>(null);
   const [selectedRewardType, setSelectedRewardType] = useState('');
@@ -653,6 +667,24 @@ export default function AdminSubmissions() {
       setMergeResult({ success: false, message: 'Failed to award pin' });
     } finally {
       setAwardingPin(false);
+    }
+  };
+
+  // View user details including address
+  const viewUserDetails = async (user: SearchedUser) => {
+    setViewingUserDetails(user);
+    setUserAddress(null);
+    setUserDetailsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/details`);
+      if (res.ok) {
+        const data = await res.json();
+        setUserAddress(data.address || null);
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+    } finally {
+      setUserDetailsLoading(false);
     }
   };
 
@@ -1366,13 +1398,18 @@ export default function AdminSubmissions() {
                               )}
                             </td>
                             <td className="px-4 py-3">
-                              <p className="text-white text-sm font-medium">
-                                {user.display_name || user.email || 'No name'}
-                              </p>
-                              {user.email && user.display_name && (
-                                <p className="text-white/50 text-xs">{user.email}</p>
-                              )}
-                              <p className="text-white/30 text-xs font-mono">{user.id.slice(0, 12)}...</p>
+                              <button
+                                onClick={() => viewUserDetails(user)}
+                                className="text-left hover:bg-white/5 rounded px-1 -mx-1 transition-colors"
+                              >
+                                <p className="text-white text-sm font-medium hover:text-gold transition-colors">
+                                  {user.display_name || user.email || 'No name'}
+                                </p>
+                                {user.email && user.display_name && (
+                                  <p className="text-white/50 text-xs">{user.email}</p>
+                                )}
+                                <p className="text-white/30 text-xs font-mono">{user.id.slice(0, 12)}...</p>
+                              </button>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex flex-wrap gap-1">
@@ -2007,6 +2044,105 @@ export default function AdminSubmissions() {
                 className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Details Modal */}
+      {viewingUserDetails && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="card-premium rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold text-white mb-4">User Details</h2>
+
+            {/* Basic Info */}
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">Display Name</label>
+              <p className="text-white font-medium">
+                {viewingUserDetails.display_name || 'Not set'}
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">Email</label>
+              <p className="text-white">
+                {viewingUserDetails.email || 'Not set'}
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">Drip Account ID</label>
+              <p className="text-white font-mono text-sm">
+                {viewingUserDetails.drip_account_id || 'Not linked'}
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">GRIT Balance</label>
+              <p className="text-gold font-semibold">
+                {viewingUserDetails.gritBalance.toLocaleString()} GRIT
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="text-white/50 text-sm block mb-1">Credentials</label>
+              <div className="flex flex-wrap gap-1">
+                {viewingUserDetails.credentials.map((cred, i) => (
+                  <span
+                    key={i}
+                    className={`px-2 py-0.5 rounded text-xs ${
+                      cred.credential_type === 'wallet' ? 'bg-blue-500/20 text-blue-400' :
+                      cred.credential_type === 'discord' ? 'bg-purple-500/20 text-purple-400' :
+                      'bg-green-500/20 text-green-400'
+                    }`}
+                  >
+                    {cred.credential_type}: {cred.identifier}
+                  </span>
+                ))}
+                {viewingUserDetails.credentials.length === 0 && (
+                  <span className="text-white/30 text-xs">No credentials</span>
+                )}
+              </div>
+            </div>
+
+            {/* Shipping Address */}
+            <div className="border-t border-white/10 pt-4 mt-4">
+              <label className="text-white/50 text-sm block mb-2">Shipping Address</label>
+              {userDetailsLoading ? (
+                <p className="text-white/40 text-sm">Loading...</p>
+              ) : userAddress ? (
+                <div className="bg-white/5 rounded-lg p-3 text-sm">
+                  <p className="text-white font-medium">{userAddress.name}</p>
+                  {userAddress.email && <p className="text-white/70">{userAddress.email}</p>}
+                  {userAddress.phone && <p className="text-white/70">{userAddress.phone}</p>}
+                  <p className="text-white/70 mt-1">{userAddress.address}</p>
+                  <p className="text-white/70">
+                    {userAddress.city}, {userAddress.state} {userAddress.zip}
+                  </p>
+                  <p className="text-white/70">{userAddress.country}</p>
+                </div>
+              ) : (
+                <p className="text-red-400/70 text-sm">No shipping address on file</p>
+              )}
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => {
+                  setAwardingPinUser(viewingUserDetails);
+                  setSelectedPin('');
+                  setViewingUserDetails(null);
+                }}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-purple-darker rounded-lg font-semibold transition-colors"
+              >
+                Award Pin
+              </button>
+              <button
+                onClick={() => setViewingUserDetails(null)}
+                className="px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-lg font-semibold transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>
