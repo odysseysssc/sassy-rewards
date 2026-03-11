@@ -179,7 +179,30 @@ export function Header() {
             {showMobileMenu && (
               <div className="absolute right-0 mt-2 w-44 card-premium rounded-xl z-50 overflow-hidden">
                 <nav className="p-3 flex flex-col">
-                  {/* Page Links */}
+                  {/* Main Nav Links (for mobile) */}
+                  <Link
+                    href="/"
+                    onClick={() => setShowMobileMenu(false)}
+                    className="text-white hover:text-gold py-2 text-sm font-semibold transition-colors md:hidden"
+                  >
+                    Rewards
+                  </Link>
+                  <Link
+                    href="/submit"
+                    onClick={() => setShowMobileMenu(false)}
+                    className="text-white hover:text-gold py-2 text-sm font-semibold transition-colors md:hidden"
+                  >
+                    Submit Content
+                  </Link>
+                  <Link
+                    href="/raffle"
+                    onClick={() => setShowMobileMenu(false)}
+                    className="text-white hover:text-gold py-2 text-sm font-semibold transition-colors md:hidden"
+                  >
+                    Pin Wheel
+                  </Link>
+
+                  {/* Additional Page Links */}
                   <Link
                     href="/shred-the-feed"
                     onClick={() => setShowMobileMenu(false)}
