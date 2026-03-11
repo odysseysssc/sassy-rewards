@@ -11,9 +11,11 @@ export async function GET() {
   const supabase = createServerClient();
 
   try {
+    // Only show actual pin wheel wins (exclude golden ticket manual awards)
     const { data: winners, error } = await supabase
       .from('pinwheel_winners')
-      .select('wallet_address, pin_won, date_won')
+      .select('wallet_address, pin_won, date_won, source')
+      .or('source.is.null,source.eq.pinwheel')
       .order('date_won', { ascending: false })
       .limit(10);
 
