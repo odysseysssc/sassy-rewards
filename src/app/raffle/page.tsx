@@ -7,8 +7,7 @@ import Link from 'next/link';
 import { PinWheel } from '@/components/PinWheel';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
-import { RAFFLE_COST, GOLDEN_TICKET_PINS } from '@/lib/constants';
-import Image from 'next/image';
+import { RAFFLE_COST } from '@/lib/constants';
 
 interface Winner {
   wallet_address: string;
@@ -253,39 +252,6 @@ export default function RafflePage() {
           <div className="card-premium rounded-xl p-4 text-center">
             <div className="text-2xl font-bold text-white">1</div>
             <div className="text-white/50 text-sm">Entry per Day</div>
-          </div>
-        </div>
-
-        {/* New Pins Coming Soon Banner */}
-        <div className="card-premium rounded-xl p-6 mb-8 border border-gold/30">
-          <div className="flex flex-col md:flex-row items-center gap-4">
-            <div className="flex-shrink-0">
-              <span className="px-3 py-1 bg-gradient-to-r from-yellow-500 to-amber-500 text-purple-darker text-sm font-bold rounded-full">
-                COMING SOON
-              </span>
-            </div>
-            <div className="flex-1 text-center md:text-left">
-              <h3 className="text-white font-semibold text-lg">New Pins Arriving!</h3>
-              <p className="text-white/50 text-sm">Fresh designs dropping on the wheel soon</p>
-            </div>
-            <div className="flex flex-wrap justify-center gap-2">
-              {GOLDEN_TICKET_PINS.slice(0, 8).map((pin) => (
-                <div key={pin.name} className="w-10 h-10 rounded-lg bg-white/10 overflow-hidden relative" title={pin.name}>
-                  <Image
-                    src={pin.image}
-                    alt={pin.name}
-                    fill
-                    className="object-contain p-1"
-                    sizes="40px"
-                  />
-                </div>
-              ))}
-              {GOLDEN_TICKET_PINS.length > 8 && (
-                <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center text-white/50 text-xs font-semibold">
-                  +{GOLDEN_TICKET_PINS.length - 8}
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
