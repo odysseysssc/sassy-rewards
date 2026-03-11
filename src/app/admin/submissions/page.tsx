@@ -79,6 +79,7 @@ interface SearchedUser {
   email: string | null;
   display_name: string | null;
   drip_account_id: string | null;
+  dripUsername: string | null;
   created_at: string;
   credentials: UserCredential[];
   gritBalance: number;
@@ -1403,10 +1404,13 @@ export default function AdminSubmissions() {
                                 className="text-left hover:bg-white/5 rounded px-1 -mx-1 transition-colors"
                               >
                                 <p className="text-white text-sm font-medium hover:text-gold transition-colors">
-                                  {user.display_name || user.email || 'No name'}
+                                  {user.display_name || user.dripUsername || user.email || 'No name'}
                                 </p>
-                                {user.email && user.display_name && (
+                                {user.email && (user.display_name || user.dripUsername) && (
                                   <p className="text-white/50 text-xs">{user.email}</p>
+                                )}
+                                {user.dripUsername && user.display_name && user.display_name !== user.dripUsername && (
+                                  <p className="text-cyan-400/70 text-xs">@{user.dripUsername}</p>
                                 )}
                                 <p className="text-white/30 text-xs font-mono">{user.id.slice(0, 12)}...</p>
                               </button>

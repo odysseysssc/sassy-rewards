@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/admin';
-import { getMemberByAccountId } from '@/lib/drip';
+import { getMemberByAccountId, searchMembersByUsername } from '@/lib/drip';
 
 export async function GET(request: NextRequest) {
   const { isAdmin: authorized, error } = await requireAdmin();
@@ -10,21 +10,21 @@ export async function GET(request: NextRequest) {
   }
 
   const searchParams = request.nextUrl.searchParams;
-  const query = searchParams.get('q')?.toLowerCase();
+  const query = searchParams.get('q')?.toLowerCase().trim();
 
-  if (!query || query.length < 3) {
-    return NextResponse.json({ error: 'Search query must be at least 3 characters' }, { status: 400 });
+  if (!query || query.length < 2) {
+    return NextResponse.json({ error: 'Search query must be at least 2 characters' }, { status: 400 });
   }
 
   try {
     const supabase = createServerClient();
 
-    // Search users by email, display_name, or id
+    // Search users by email, display_name, drip_account_id, or id
     const { data: users, error: usersError } = await supabase
       .from('users')
       .select('id, email, display_name, drip_account_id, created_at')
-      .or(`email.ilike.%${query}%,display_name.ilike.%${query}%,id.eq.${query}`)
-      .limit(20);
+      .or(`email.ilike.%${query}%,display_name.ilike.%${query}%,drip_account_id.ilike.%${query}%,id.ilike.%${query}%`)
+      .limit(30);
 
     if (usersError) throw usersError;
 
@@ -50,8 +50,22 @@ export async function GET(request: NextRequest) {
       credUsers = data || [];
     }
 
+    // Search Drip directly for username matches
+    const dripMatches = await searchMembersByUsername(query, 20);
+    const dripAccountIds = dripMatches.map(m => m.id).filter(Boolean);
+
+    // Find users in our DB with these Drip account IDs
+    let dripUserMatches: typeof users = [];
+    if (dripAccountIds.length > 0) {
+      const { data } = await supabase
+        .from('users')
+        .select('id, email, display_name, drip_account_id, created_at')
+        .in('drip_account_id', dripAccountIds);
+      dripUserMatches = data || [];
+    }
+
     // Merge and dedupe results
-    const allUsers = [...(users || []), ...credUsers];
+    const allUsers = [...(users || []), ...credUsers, ...dripUserMatches];
     const uniqueUsers = allUsers.filter((user, index, self) =>
       index === self.findIndex(u => u.id === user.id)
     );
@@ -61,17 +75,19 @@ export async function GET(request: NextRequest) {
     const { data: allCredentials } = await supabase
       .from('connected_credentials')
       .select('user_id, credential_type, identifier')
-      .in('user_id', userIds);
+      .in('user_id', userIds.length > 0 ? userIds : ['none']);
 
-    // Fetch GRIT balance for users with drip_account_id
+    // Fetch GRIT balance and Drip username for users with drip_account_id
     const usersWithGrit = await Promise.all(
       uniqueUsers.map(async (user) => {
         let gritBalance = 0;
+        let dripUsername = null;
         if (user.drip_account_id) {
           try {
             const member = await getMemberByAccountId(user.drip_account_id);
             if (member) {
               gritBalance = member.points || 0;
+              dripUsername = member.username || null;
             }
           } catch (e) {
             console.error('Error fetching GRIT for user:', user.id, e);
@@ -81,6 +97,7 @@ export async function GET(request: NextRequest) {
           ...user,
           credentials: (allCredentials || []).filter(c => c.user_id === user.id),
           gritBalance,
+          dripUsername,
         };
       })
     );

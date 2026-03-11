@@ -145,7 +145,7 @@ export async function GET() {
 
     // Add member names, email and shipping to winners
     const winnersWithData = data?.map(winner => {
-      const identifierLower = winner.wallet_address.toLowerCase();
+      const identifierLower = winner.wallet_address.toLowerCase().trim();
       return {
         ...winner,
         identifier_full: winner.wallet_address, // Full identifier for admin visibility
@@ -155,6 +155,51 @@ export async function GET() {
         shipping_address: shippingAddresses[identifierLower] || null,
       };
     });
+
+    // For any winners without shipping addresses, try direct lookup by drip_account_id
+    const winnersNeedingLookup = winnersWithData?.filter(w => !w.shipping_address && !isWalletAddress(w.wallet_address)) || [];
+    if (winnersNeedingLookup.length > 0) {
+      const accountIds = winnersNeedingLookup.map(w => w.wallet_address.toLowerCase().trim());
+
+      // Direct case-insensitive lookup
+      const { data: directUsers } = await supabase
+        .from('users')
+        .select('drip_account_id, shipping_name, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country')
+        .not('drip_account_id', 'is', null)
+        .not('shipping_address', 'is', null);
+
+      const directShippingMap: Record<string, ShippingAddress> = {};
+      (directUsers || []).forEach((user: {
+        drip_account_id: string | null;
+        shipping_name: string | null;
+        shipping_address: string | null;
+        shipping_city: string | null;
+        shipping_state: string | null;
+        shipping_zip: string | null;
+        shipping_country: string | null;
+      }) => {
+        if (user.drip_account_id && user.shipping_address) {
+          directShippingMap[user.drip_account_id.toLowerCase().trim()] = {
+            name: user.shipping_name,
+            address: user.shipping_address,
+            city: user.shipping_city,
+            state: user.shipping_state,
+            zip: user.shipping_zip,
+            country: user.shipping_country,
+          };
+        }
+      });
+
+      // Update winners with direct lookup results
+      winnersWithData?.forEach(winner => {
+        if (!winner.shipping_address && !isWalletAddress(winner.wallet_address)) {
+          const key = winner.wallet_address.toLowerCase().trim();
+          if (directShippingMap[key]) {
+            winner.shipping_address = directShippingMap[key];
+          }
+        }
+      });
+    }
 
     return NextResponse.json({ winners: winnersWithData });
   } catch (error) {

@@ -498,6 +498,58 @@ export async function updateMemberDisplayName(
 }
 
 /**
+ * Search Drip members by username
+ * Returns matching members from the leaderboard
+ */
+export async function searchMembersByUsername(query: string, limit: number = 10): Promise<DripMember[]> {
+  const realmId = process.env.DRIP_REALM_ID;
+  const gritCurrencyId = process.env.DRIP_GRIT_CURRENCY_ID;
+  if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
+
+  const queryLower = query.toLowerCase();
+  const matches: DripMember[] = [];
+
+  try {
+    let cursor: string | undefined;
+    let hasNextPage = true;
+    let totalSearched = 0;
+
+    while (hasNextPage && totalSearched < 500 && matches.length < limit) {
+      const params = new URLSearchParams({ take: '50' });
+      if (gritCurrencyId) params.set('currencyId', gritCurrencyId);
+      if (cursor) params.set('after', cursor);
+
+      const url = `/realms/${realmId}/members/leaderboard?${params.toString()}`;
+      const response = await dripFetch(url);
+      const members = response.data || [];
+
+      for (const member of members) {
+        const username = (member.displayName || member.username || '').toLowerCase();
+        if (username.includes(queryLower)) {
+          matches.push({
+            id: member.accountId,
+            username: member.displayName || member.username,
+            points: member.balance || 0,
+            rank: member.rank,
+            currencyId: gritCurrencyId,
+          });
+          if (matches.length >= limit) break;
+        }
+      }
+
+      totalSearched += members.length;
+      hasNextPage = response.meta?.hasNextPage || false;
+      cursor = response.meta?.endCursor;
+    }
+
+    return matches;
+  } catch (error) {
+    console.error('searchMembersByUsername error:', error);
+    return [];
+  }
+}
+
+/**
  * Get or create a Drip account for an email
  * Returns the accountId
  */
