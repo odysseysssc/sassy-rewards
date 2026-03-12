@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
-import { PINS } from '@/lib/constants';
+import { PINS, LEGACY_PINS, ALL_AWARD_PINS } from '@/lib/constants';
 import { getMemberByWallet, getMemberByAccountId } from '@/lib/drip';
 
 const LOGO_URL = 'https://portal.shreddingsassy.com/images/sassy%20mascot%20logo%20(2).jpg';
@@ -108,7 +108,10 @@ async function notifyDiscord(identifier: string, pin: string) {
     }
   }
 
-  const pinImageUrl = `https://portal.shreddingsassy.com/images/${encodeURIComponent(pin.toLowerCase())}.png`;
+  // Find the pin in constants to get the correct image path
+  const pinData = ALL_AWARD_PINS.find(p => p.name === pin);
+  const pinImagePath = pinData?.image || `/images/${pin.toLowerCase()}.png`;
+  const pinImageUrl = `https://portal.shreddingsassy.com${pinImagePath}`;
 
   // Build message with ping if we have Discord ID
   const winnerMention = discordId ? `<@${discordId}>` : `**${displayName}**`;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByWallet, getMemberByAccountId, findCredential } from '@/lib/drip';
+import { getMemberByWallet, getMemberByAccountId, searchMembersByUsername } from '@/lib/drip';
 import { requireAdmin } from '@/lib/admin';
 
 interface ShippingAddress {
@@ -243,6 +243,19 @@ export async function GET() {
           });
 
           // For each unmatched winner, try to find by Drip credentials
+          // Also need to look up users by drip_account_id for email-only users
+          const { data: allUsersWithDripId } = await supabase
+            .from('users')
+            .select('id, drip_account_id')
+            .not('drip_account_id', 'is', null);
+
+          const dripAccountIdToUserId: Record<string, string> = {};
+          (allUsersWithDripId || []).forEach((u: { id: string; drip_account_id: string }) => {
+            if (u.drip_account_id) {
+              dripAccountIdToUserId[u.drip_account_id.toLowerCase().trim()] = u.id;
+            }
+          });
+
           await Promise.all(stillNeedingLookup.map(async (winner) => {
             try {
               const identifier = winner.wallet_address;
@@ -251,10 +264,29 @@ export async function GET() {
               if (isWalletAddress(identifier)) {
                 member = await getMemberByWallet(identifier);
               } else {
+                // Try by accountId first
                 member = await getMemberByAccountId(identifier);
+
+                // If not found, the identifier might be a USERNAME not an accountId
+                // Search by username to find the member
+                if (!member) {
+                  const usernameMatches = await searchMembersByUsername(identifier, 1);
+                  if (usernameMatches.length > 0 && usernameMatches[0].username?.toLowerCase() === identifier.toLowerCase()) {
+                    member = usernameMatches[0];
+                  }
+                }
               }
 
               if (!member) return;
+
+              // Try to find user by the member's actual Drip account ID
+              if (member.id) {
+                const userId = dripAccountIdToUserId[member.id.toLowerCase().trim()];
+                if (userId && userShippingMap[userId]) {
+                  winner.shipping_address = userShippingMap[userId];
+                  return;
+                }
+              }
 
               // Try to find user by wallet
               if (member.wallet) {
