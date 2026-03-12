@@ -449,10 +449,12 @@ export async function getMemberByAccountId(accountId: string): Promise<DripMembe
       const response = await dripFetch(url);
       const members = response.data || [];
 
-      const member = members.find((m: { accountId: string }) => m.accountId === accountId);
+      const accountIdLower = accountId.toLowerCase();
+      const member = members.find((m: { accountId: string }) => m.accountId?.toLowerCase() === accountIdLower);
       if (member) {
         return {
           id: member.accountId,
+          wallet: member.wallet,
           username: member.displayName || member.username,
           points: member.balance || 0,
           rank: member.rank,

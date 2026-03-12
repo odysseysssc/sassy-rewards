@@ -86,10 +86,11 @@ export async function GET() {
         .select('id, drip_account_id')
         .not('drip_account_id', 'is', null);
 
-      const accountIdSet = new Set(accountIdIdentifiers.map(id => id.toLowerCase()));
+      const accountIdSet = new Set(accountIdIdentifiers.map(id => id.toLowerCase().trim()));
       (accountUsers || []).forEach((user: { id: string; drip_account_id: string }) => {
-        if (user.drip_account_id && accountIdSet.has(user.drip_account_id.toLowerCase())) {
-          identifierToUserId[user.drip_account_id.toLowerCase()] = user.id;
+        if (user.drip_account_id && accountIdSet.has(user.drip_account_id.toLowerCase().trim())) {
+          // Use the winner's identifier format (lowercased+trimmed) as the key
+          identifierToUserId[user.drip_account_id.toLowerCase().trim()] = user.id;
         }
       });
     }
