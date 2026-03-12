@@ -64,6 +64,35 @@ export async function GET(request: NextRequest) {
       dripUserMatches = data || [];
     }
 
+    // For Drip matches not found by account ID, try finding by their wallet credentials
+    const foundDripAccountIds = new Set(dripUserMatches.map(u => u.drip_account_id));
+    const unmatchedDripMembers = dripMatches.filter(m => m.id && !foundDripAccountIds.has(m.id));
+
+    if (unmatchedDripMembers.length > 0) {
+      // Collect wallets from Drip members (returned from leaderboard)
+      const memberWallets = unmatchedDripMembers
+        .filter(m => m.wallet)
+        .map(m => m.wallet!.toLowerCase());
+
+      // Search for users by wallet credentials
+      if (memberWallets.length > 0) {
+        const { data: walletCreds } = await supabase
+          .from('connected_credentials')
+          .select('user_id')
+          .eq('credential_type', 'wallet')
+          .in('identifier', memberWallets);
+
+        if (walletCreds && walletCreds.length > 0) {
+          const walletUserIds = [...new Set(walletCreds.map(c => c.user_id))];
+          const { data: walletUsers } = await supabase
+            .from('users')
+            .select('id, email, display_name, drip_account_id, created_at')
+            .in('id', walletUserIds);
+          if (walletUsers) dripUserMatches.push(...walletUsers);
+        }
+      }
+    }
+
     // Merge and dedupe results
     const allUsers = [...(users || []), ...credUsers, ...dripUserMatches];
     const uniqueUsers = allUsers.filter((user, index, self) =>

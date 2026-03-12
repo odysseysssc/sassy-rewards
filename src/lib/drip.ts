@@ -528,6 +528,7 @@ export async function searchMembersByUsername(query: string, limit: number = 10)
         if (username.includes(queryLower)) {
           matches.push({
             id: member.accountId,
+            wallet: member.wallet,
             username: member.displayName || member.username,
             points: member.balance || 0,
             rank: member.rank,

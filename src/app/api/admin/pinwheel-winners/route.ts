@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByWallet, getMemberByAccountId } from '@/lib/drip';
+import { getMemberByWallet, getMemberByAccountId, findCredential } from '@/lib/drip';
 import { requireAdmin } from '@/lib/admin';
 
 interface ShippingAddress {
@@ -156,20 +156,19 @@ export async function GET() {
       };
     });
 
-    // For any winners without shipping addresses, try direct lookup by drip_account_id
-    const winnersNeedingLookup = winnersWithData?.filter(w => !w.shipping_address && !isWalletAddress(w.wallet_address)) || [];
+    // For any winners without shipping addresses, try multiple lookup strategies
+    const winnersNeedingLookup = winnersWithData?.filter(w => !w.shipping_address) || [];
     if (winnersNeedingLookup.length > 0) {
-      const accountIds = winnersNeedingLookup.map(w => w.wallet_address.toLowerCase().trim());
-
-      // Direct case-insensitive lookup
+      // Strategy 1: Direct case-insensitive lookup by drip_account_id
       const { data: directUsers } = await supabase
         .from('users')
-        .select('drip_account_id, shipping_name, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country')
+        .select('id, drip_account_id, shipping_name, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country')
         .not('drip_account_id', 'is', null)
         .not('shipping_address', 'is', null);
 
       const directShippingMap: Record<string, ShippingAddress> = {};
       (directUsers || []).forEach((user: {
+        id: string;
         drip_account_id: string | null;
         shipping_name: string | null;
         shipping_address: string | null;
@@ -192,13 +191,93 @@ export async function GET() {
 
       // Update winners with direct lookup results
       winnersWithData?.forEach(winner => {
-        if (!winner.shipping_address && !isWalletAddress(winner.wallet_address)) {
+        if (!winner.shipping_address) {
           const key = winner.wallet_address.toLowerCase().trim();
           if (directShippingMap[key]) {
             winner.shipping_address = directShippingMap[key];
           }
         }
       });
+
+      // Strategy 2: For still-unmatched winners, look up their Drip credentials and find by wallet/email
+      const stillNeedingLookup = winnersWithData?.filter(w => !w.shipping_address) || [];
+      if (stillNeedingLookup.length > 0) {
+        // Get all users with shipping addresses for credential matching
+        const { data: usersWithShipping } = await supabase
+          .from('users')
+          .select('id, shipping_name, shipping_address, shipping_city, shipping_state, shipping_zip, shipping_country')
+          .not('shipping_address', 'is', null);
+
+        if (usersWithShipping && usersWithShipping.length > 0) {
+          const userIdsWithShipping = usersWithShipping.map(u => u.id);
+
+          // Get all credentials for users with shipping
+          const { data: credentials } = await supabase
+            .from('connected_credentials')
+            .select('user_id, credential_type, identifier')
+            .in('user_id', userIdsWithShipping);
+
+          // Build lookup maps
+          const walletToUserId: Record<string, string> = {};
+          const emailToUserId: Record<string, string> = {};
+
+          (credentials || []).forEach((cred: { user_id: string; credential_type: string; identifier: string }) => {
+            if (cred.credential_type === 'wallet') {
+              walletToUserId[cred.identifier.toLowerCase()] = cred.user_id;
+            } else if (cred.credential_type === 'email') {
+              emailToUserId[cred.identifier.toLowerCase()] = cred.user_id;
+            }
+          });
+
+          const userShippingMap: Record<string, ShippingAddress> = {};
+          usersWithShipping.forEach(user => {
+            userShippingMap[user.id] = {
+              name: user.shipping_name,
+              address: user.shipping_address,
+              city: user.shipping_city,
+              state: user.shipping_state,
+              zip: user.shipping_zip,
+              country: user.shipping_country,
+            };
+          });
+
+          // For each unmatched winner, try to find by Drip credentials
+          await Promise.all(stillNeedingLookup.map(async (winner) => {
+            try {
+              const identifier = winner.wallet_address;
+              let member;
+
+              if (isWalletAddress(identifier)) {
+                member = await getMemberByWallet(identifier);
+              } else {
+                member = await getMemberByAccountId(identifier);
+              }
+
+              if (!member) return;
+
+              // Try to find user by wallet
+              if (member.wallet) {
+                const userId = walletToUserId[member.wallet.toLowerCase()];
+                if (userId && userShippingMap[userId]) {
+                  winner.shipping_address = userShippingMap[userId];
+                  return;
+                }
+              }
+
+              // Try to find user by email
+              if (member.email) {
+                const userId = emailToUserId[member.email.toLowerCase()];
+                if (userId && userShippingMap[userId]) {
+                  winner.shipping_address = userShippingMap[userId];
+                  return;
+                }
+              }
+            } catch (error) {
+              console.error(`Error looking up Drip member for winner ${winner.wallet_address}:`, error);
+            }
+          }));
+        }
+      }
     }
 
     return NextResponse.json({ winners: winnersWithData });
