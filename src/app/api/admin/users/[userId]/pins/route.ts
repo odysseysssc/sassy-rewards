@@ -34,16 +34,8 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Get user's wallet from connected_credentials
-    const { data: walletCred } = await supabase
-      .from('connected_credentials')
-      .select('identifier')
-      .eq('user_id', userId)
-      .eq('credential_type', 'wallet')
-      .single();
-
-    // Use wallet address if available, otherwise use drip_account_id
-    const identifier = walletCred?.identifier?.toLowerCase() || user.drip_account_id?.toLowerCase();
+    // Use drip_account_id as canonical identifier (consistent with pinwheel entry)
+    const identifier = user.drip_account_id?.toLowerCase();
 
     if (!identifier) {
       return NextResponse.json({
