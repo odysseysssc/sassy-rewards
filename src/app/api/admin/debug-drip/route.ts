@@ -55,12 +55,42 @@ export async function GET(request: NextRequest) {
     results.list_credentials_error = e instanceof Error ? e.message : String(e);
   }
 
-  // Try the balance endpoint directly (might give different error)
+  // Try PATCH balance directly (this is what should award GRIT)
   try {
     const url = `/realms/${realmId}/credentials/balance?type=email&value=${encodeURIComponent(emailLower)}`;
-    results.balance_get = await rawDripFetch(url);
+    const gritCurrencyId = process.env.DRIP_GRIT_CURRENCY_ID;
+    const response = await fetch(`${DRIP_API_BASE}${url}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${process.env.DRIP_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: 1, // Just 1 GRIT as test
+        ...(gritCurrencyId && { realmPointId: gritCurrencyId }),
+      }),
+    });
+    const body = await response.text();
+    results.balance_patch = { status: response.status, body };
   } catch (e) {
-    results.balance_get_error = e instanceof Error ? e.message : String(e);
+    results.balance_patch_error = e instanceof Error ? e.message : String(e);
+  }
+
+  // Also try without the realmPointId
+  try {
+    const url = `/realms/${realmId}/credentials/balance?type=email&value=${encodeURIComponent(emailLower)}`;
+    const response = await fetch(`${DRIP_API_BASE}${url}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${process.env.DRIP_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ amount: 1 }),
+    });
+    const body = await response.text();
+    results.balance_patch_no_currency = { status: response.status, body };
+  } catch (e) {
+    results.balance_patch_no_currency_error = e instanceof Error ? e.message : String(e);
   }
 
   // Test member search
