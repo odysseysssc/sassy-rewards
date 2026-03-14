@@ -31,15 +31,36 @@ export async function GET(request: NextRequest) {
   const realmId = process.env.DRIP_REALM_ID;
   const results: Record<string, unknown> = { email: emailLower, realmId };
 
-  // Test different type values for find endpoint
-  const typesToTry = ['email', 'social', 'email-social', 'provider-email'];
-  for (const type of typesToTry) {
-    try {
-      const url = `/realms/${realmId}/credentials/find?type=${type}&value=${encodeURIComponent(emailLower)}`;
-      results[`find_${type}`] = await rawDripFetch(url);
-    } catch (e) {
-      results[`find_${type}_error`] = e instanceof Error ? e.message : String(e);
-    }
+  // Test find endpoint with type=email
+  try {
+    const url = `/realms/${realmId}/credentials/find?type=email&value=${encodeURIComponent(emailLower)}`;
+    results.find_email = await rawDripFetch(url);
+  } catch (e) {
+    results.find_email_error = e instanceof Error ? e.message : String(e);
+  }
+
+  // Try search endpoint (like members/search)
+  try {
+    const url = `/realms/${realmId}/credentials/search?type=email&values=${encodeURIComponent(emailLower)}`;
+    results.search_email = await rawDripFetch(url);
+  } catch (e) {
+    results.search_email_error = e instanceof Error ? e.message : String(e);
+  }
+
+  // Try GET all credentials and filter
+  try {
+    const url = `/realms/${realmId}/credentials?type=email`;
+    results.list_credentials = await rawDripFetch(url);
+  } catch (e) {
+    results.list_credentials_error = e instanceof Error ? e.message : String(e);
+  }
+
+  // Try the balance endpoint directly (might give different error)
+  try {
+    const url = `/realms/${realmId}/credentials/balance?type=email&value=${encodeURIComponent(emailLower)}`;
+    results.balance_get = await rawDripFetch(url);
+  } catch (e) {
+    results.balance_get_error = e instanceof Error ? e.message : String(e);
   }
 
   // Test member search
