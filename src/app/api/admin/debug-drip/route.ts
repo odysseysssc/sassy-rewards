@@ -71,12 +71,33 @@ export async function GET(request: NextRequest) {
     results.getMemberError = e instanceof Error ? e.message : String(e);
   }
 
-  // Test create (will show 409 if exists)
+  // Test create with raw response (to see full 409 body)
   try {
-    const created = await createEmailCredential(emailLower, emailLower.split('@')[0]);
-    results.createCredential = created;
+    const url = `/realms/${realmId}/credentials/social`;
+    const response = await fetch(`${DRIP_API_BASE}${url}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.DRIP_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        provider: 'email',
+        providerId: emailLower,
+        username: emailLower.split('@')[0],
+      }),
+    });
+    const body = await response.text();
+    results.createRaw = { status: response.status, body };
   } catch (e) {
-    results.createCredentialError = e instanceof Error ? e.message : String(e);
+    results.createRawError = e instanceof Error ? e.message : String(e);
+  }
+
+  // Also try looking up by provider format
+  try {
+    const url = `/realms/${realmId}/credentials/find?type=provider&value=email:${encodeURIComponent(emailLower)}`;
+    results.find_provider_format = await rawDripFetch(url);
+  } catch (e) {
+    results.find_provider_format_error = e instanceof Error ? e.message : String(e);
   }
 
   return NextResponse.json(results);
