@@ -83,83 +83,72 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // No user in DB - check if email credential exists in Drip
-    const existingCredential = await findCredentialByEmail(customerEmail);
+    // No user in DB with drip_account_id - need to award to email credential
+    // Strategy: Create credential if needed, then award GRIT
 
-    if (existingCredential) {
-      // Credential exists - award GRIT to email credential
-      const awarded = await awardGritToEmail(customerEmail, gritAmount, `Shopify order ${orderId}`);
+    console.log(`[Shopify] No user account found, awarding to email credential: ${customerEmail}`);
 
-      if (awarded) {
-        // Record transaction (unclaimed since no user account yet)
-        await createGritTransaction(
+    // Step 1: Ensure credential exists
+    let credential = await findCredentialByEmail(customerEmail);
+
+    if (!credential) {
+      console.log(`[Shopify] Creating credential for: ${customerEmail}`);
+      try {
+        credential = await createEmailCredential(
           customerEmail,
-          gritAmount,
-          'shopify',
-          orderId,
-          undefined,
-          false
+          order.customer?.first_name || customerEmail.split('@')[0]
         );
-
-        console.log(`Awarded ${gritAmount} GRIT to email credential: ${customerEmail}`);
-        return NextResponse.json({
-          success: true,
-          email: customerEmail,
-          gritAwarded: gritAmount,
-          message: 'GRIT awarded to email credential',
-        });
+        console.log(`[Shopify] Credential created:`, JSON.stringify(credential));
+      } catch (credError) {
+        console.error(`[Shopify] Failed to create credential for ${customerEmail}:`, credError);
       }
+    } else {
+      console.log(`[Shopify] Found existing credential:`, JSON.stringify(credential));
     }
 
-    // No credential exists - create ghost credential and award
-    try {
-      const newCredential = await createEmailCredential(
+    // Step 2: Award GRIT (try regardless of credential creation result)
+    console.log(`[Shopify] Awarding ${gritAmount} GRIT to ${customerEmail}`);
+    const awarded = await awardGritToEmail(customerEmail, gritAmount, `Shopify order ${orderId}`);
+    console.log(`[Shopify] Award result: ${awarded}`);
+
+    if (awarded) {
+      // Record transaction - mark as claimed since GRIT was actually awarded
+      await createGritTransaction(
         customerEmail,
-        order.customer?.first_name || customerEmail.split('@')[0]
+        gritAmount,
+        'shopify',
+        orderId,
+        undefined,
+        true  // Mark as claimed since we successfully awarded to Drip
       );
 
-      if (newCredential) {
-        const awarded = await awardGritToEmail(customerEmail, gritAmount, `Shopify order ${orderId}`);
-
-        // Record transaction
-        await createGritTransaction(
-          customerEmail,
-          gritAmount,
-          'shopify',
-          orderId,
-          undefined,
-          false
-        );
-
-        console.log(`Created credential and awarded ${gritAmount} GRIT for: ${customerEmail}`);
-        return NextResponse.json({
-          success: true,
-          email: customerEmail,
-          gritAwarded: gritAmount,
-          message: awarded ? 'Ghost credential created with GRIT' : 'Credential created, GRIT pending',
-        });
-      }
-    } catch (credError) {
-      console.error('Error creating credential:', credError);
+      console.log(`[Shopify] Successfully awarded ${gritAmount} GRIT to ${customerEmail}`);
+      return NextResponse.json({
+        success: true,
+        email: customerEmail,
+        gritAwarded: gritAmount,
+        message: 'GRIT awarded to email credential',
+      });
     }
 
-    // Fallback: Just record the pending GRIT in database
+    // Award failed - record as pending so we can retry later
+    console.error(`[Shopify] Failed to award GRIT to ${customerEmail}, recording as pending`);
     await createGritTransaction(
       customerEmail,
       gritAmount,
       'shopify',
       orderId,
       undefined,
-      false
+      false  // Mark as unclaimed so we can retry
     );
 
-    console.log(`Recorded pending GRIT for: ${customerEmail} - ${gritAmount} GRIT`);
+    // Return 500 so Shopify knows it failed and might retry
     return NextResponse.json({
-      success: true,
+      success: false,
       email: customerEmail,
       pendingGrit: gritAmount,
-      message: 'GRIT recorded as pending',
-    });
+      error: 'Failed to award GRIT to Drip, recorded as pending',
+    }, { status: 500 });
 
   } catch (error) {
     console.error('Shopify webhook error:', error);
