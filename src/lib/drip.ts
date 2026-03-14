@@ -374,6 +374,7 @@ export async function updateCredentialBalance(
 /**
  * Award GRIT to an email credential
  * Creates the credential first if it doesn't exist
+ * Uses member endpoint if we have an accountId, otherwise credentials endpoint
  */
 export async function awardGritToEmail(
   email: string,
@@ -387,46 +388,90 @@ export async function awardGritToEmail(
   const emailLower = email.toLowerCase();
   console.log(`[awardGritToEmail] Awarding ${amount} GRIT to ${emailLower}`);
 
-  // First ensure credential exists
+  // First check if credential/member exists
   let credential = await findCredentialByEmail(emailLower);
-  let credentialError: string | undefined;
+  console.log(`[awardGritToEmail] findCredentialByEmail result:`, JSON.stringify(credential));
 
+  // Also check for existing member
+  const existingMember = await getMemberByEmail(emailLower);
+  console.log(`[awardGritToEmail] getMemberByEmail result:`, JSON.stringify(existingMember));
+
+  // If we have a member with accountId, use the member endpoint (more reliable)
+  if (existingMember?.id) {
+    console.log(`[awardGritToEmail] Found member ${existingMember.id}, using member endpoint`);
+    const awarded = await awardGritToAccount(existingMember.id, amount, reason);
+    if (awarded) {
+      return { success: true };
+    }
+    return { success: false, error: 'awardGritToAccount failed for member ' + existingMember.id };
+  }
+
+  // If credential has accountId, use that
+  if (credential?.accountId) {
+    console.log(`[awardGritToEmail] Credential has accountId ${credential.accountId}, using member endpoint`);
+    const awarded = await awardGritToAccount(credential.accountId, amount, reason);
+    if (awarded) {
+      return { success: true };
+    }
+    return { success: false, error: 'awardGritToAccount failed for accountId ' + credential.accountId };
+  }
+
+  // No member/accountId - need to create credential first
   if (!credential) {
     console.log(`[awardGritToEmail] No credential found, creating one for ${emailLower}`);
     try {
       credential = await createEmailCredential(emailLower, emailLower.split('@')[0]);
       console.log(`[awardGritToEmail] Created credential:`, JSON.stringify(credential));
+
+      // If creation gave us an accountId, use it
+      if (credential?.accountId) {
+        console.log(`[awardGritToEmail] New credential has accountId ${credential.accountId}`);
+        const awarded = await awardGritToAccount(credential.accountId, amount, reason);
+        if (awarded) {
+          return { success: true };
+        }
+        return { success: false, error: 'awardGritToAccount failed for new credential ' + credential.accountId };
+      }
     } catch (createErr) {
-      credentialError = createErr instanceof Error ? createErr.message : 'Unknown error creating credential';
-      console.error(`[awardGritToEmail] Failed to create credential:`, credentialError);
-      // Continue anyway - the balance update might still work
+      // 409 means credential already exists - try to find it again
+      const errMsg = createErr instanceof Error ? createErr.message : '';
+      if (errMsg.includes('409')) {
+        console.log(`[awardGritToEmail] 409 on create, credential exists. Retrying find...`);
+        credential = await findCredentialByEmail(emailLower);
+        console.log(`[awardGritToEmail] Retry find result:`, JSON.stringify(credential));
+
+        if (credential?.accountId) {
+          const awarded = await awardGritToAccount(credential.accountId, amount, reason);
+          if (awarded) {
+            return { success: true };
+          }
+        }
+      } else {
+        console.error(`[awardGritToEmail] Failed to create credential:`, errMsg);
+      }
     }
-  } else {
-    console.log(`[awardGritToEmail] Found existing credential:`, JSON.stringify(credential));
   }
 
+  // Last resort: try the credentials/balance endpoint directly
+  // This works for ghost credentials without accountId
   try {
     const url = `/realms/${realmId}/credentials/balance?type=email&value=${encodeURIComponent(emailLower)}`;
     const body = {
       amount,
       ...(gritCurrencyId && { realmPointId: gritCurrencyId }),
-      ...(reason && { metadata: { reason } }),
     };
-    console.log(`[awardGritToEmail] PATCH ${url}`, JSON.stringify(body));
+    console.log(`[awardGritToEmail] Trying credentials/balance endpoint: PATCH ${url}`);
 
     await dripFetch(url, {
       method: 'PATCH',
       body: JSON.stringify(body),
     });
-    console.log(`[awardGritToEmail] Successfully awarded ${amount} GRIT to ${emailLower}`);
+    console.log(`[awardGritToEmail] Successfully awarded via credentials/balance`);
     return { success: true };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[awardGritToEmail] Failed to award GRIT to ${emailLower}:`, errorMsg);
-    return {
-      success: false,
-      error: credentialError ? `Credential: ${credentialError}; Balance: ${errorMsg}` : errorMsg
-    };
+    console.error(`[awardGritToEmail] credentials/balance failed:`, errorMsg);
+    return { success: false, error: errorMsg };
   }
 }
 
