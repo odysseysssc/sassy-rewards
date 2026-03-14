@@ -122,12 +122,41 @@ export async function GET(request: NextRequest) {
     results.createRawError = e instanceof Error ? e.message : String(e);
   }
 
-  // Also try looking up by provider format
+  // Try DELETE to clear the broken credential
   try {
-    const url = `/realms/${realmId}/credentials/find?type=provider&value=email:${encodeURIComponent(emailLower)}`;
-    results.find_provider_format = await rawDripFetch(url);
+    const url = `/realms/${realmId}/credentials/social?provider=email&providerId=${encodeURIComponent(emailLower)}`;
+    const response = await fetch(`${DRIP_API_BASE}${url}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${process.env.DRIP_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    const body = await response.text();
+    results.delete_credential = { status: response.status, body };
   } catch (e) {
-    results.find_provider_format_error = e instanceof Error ? e.message : String(e);
+    results.delete_credential_error = e instanceof Error ? e.message : String(e);
+  }
+
+  // After delete attempt, try create again
+  try {
+    const url = `/realms/${realmId}/credentials/social`;
+    const response = await fetch(`${DRIP_API_BASE}${url}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.DRIP_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        provider: 'email',
+        providerId: emailLower,
+        username: emailLower.split('@')[0],
+      }),
+    });
+    const body = await response.text();
+    results.createAfterDelete = { status: response.status, body };
+  } catch (e) {
+    results.createAfterDeleteError = e instanceof Error ? e.message : String(e);
   }
 
   return NextResponse.json(results);
