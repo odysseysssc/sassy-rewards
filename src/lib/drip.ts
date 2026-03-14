@@ -555,27 +555,63 @@ export async function searchMembersByUsername(query: string, limit: number = 10)
 /**
  * Get or create a Drip account for an email
  * Returns the accountId
+ *
+ * Handles ghost credentials (from Shopify orders) that have GRIT but no accountId yet.
  */
 export async function getOrCreateDripAccount(email: string, username?: string): Promise<string | null> {
+  const emailLower = email.toLowerCase();
+  console.log('[getOrCreateDripAccount] Looking up:', emailLower);
+
   // First check if credential already exists
-  const existingCredential = await findCredentialByEmail(email);
+  const existingCredential = await findCredentialByEmail(emailLower);
+  console.log('[getOrCreateDripAccount] existingCredential:', JSON.stringify(existingCredential));
   if (existingCredential?.accountId) {
+    console.log('[getOrCreateDripAccount] Found credential with accountId:', existingCredential.accountId);
     return existingCredential.accountId;
   }
 
   // Also check if member exists via search
-  const existingMember = await getMemberByEmail(email);
+  const existingMember = await getMemberByEmail(emailLower);
+  console.log('[getOrCreateDripAccount] existingMember:', JSON.stringify(existingMember));
   if (existingMember?.id) {
+    console.log('[getOrCreateDripAccount] Found member:', existingMember.id);
     return existingMember.id;
   }
 
-  // Create new credential (this creates an account too)
-  try {
-    const newCredential = await createEmailCredential(email, username);
-    return newCredential.accountId || null;
-  } catch {
-    return null;
+  // Found a ghost credential without accountId - log it
+  if (existingCredential) {
+    console.log('[getOrCreateDripAccount] Found GHOST credential (no accountId) for:', emailLower);
   }
+
+  // Try to create new credential (this creates an account too)
+  try {
+    console.log('[getOrCreateDripAccount] Attempting to create credential...');
+    const newCredential = await createEmailCredential(emailLower, username);
+    console.log('[getOrCreateDripAccount] newCredential:', JSON.stringify(newCredential));
+    if (newCredential?.accountId) {
+      return newCredential.accountId;
+    }
+  } catch (e) {
+    console.log('[getOrCreateDripAccount] createEmailCredential failed:', e);
+  }
+
+  // If creation failed (maybe credential already exists), try finding again
+  // The Drip API might have created/linked an account in the process
+  console.log('[getOrCreateDripAccount] Retrying lookups...');
+  const retryCredential = await findCredentialByEmail(emailLower);
+  console.log('[getOrCreateDripAccount] retryCredential:', JSON.stringify(retryCredential));
+  if (retryCredential?.accountId) {
+    return retryCredential.accountId;
+  }
+
+  const retryMember = await getMemberByEmail(emailLower);
+  console.log('[getOrCreateDripAccount] retryMember:', JSON.stringify(retryMember));
+  if (retryMember?.id) {
+    return retryMember.id;
+  }
+
+  console.error('[getOrCreateDripAccount] Could not get or create Drip account for:', emailLower);
+  return null;
 }
 
 /**
