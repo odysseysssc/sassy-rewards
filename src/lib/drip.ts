@@ -379,23 +379,26 @@ export async function awardGritToEmail(
   email: string,
   amount: number,
   reason?: string
-): Promise<boolean> {
+): Promise<{ success: boolean; error?: string }> {
   const realmId = process.env.DRIP_REALM_ID;
   const gritCurrencyId = process.env.DRIP_GRIT_CURRENCY_ID;
-  if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
+  if (!realmId) return { success: false, error: 'DRIP_REALM_ID is not configured' };
 
   const emailLower = email.toLowerCase();
   console.log(`[awardGritToEmail] Awarding ${amount} GRIT to ${emailLower}`);
 
   // First ensure credential exists
   let credential = await findCredentialByEmail(emailLower);
+  let credentialError: string | undefined;
+
   if (!credential) {
     console.log(`[awardGritToEmail] No credential found, creating one for ${emailLower}`);
     try {
       credential = await createEmailCredential(emailLower, emailLower.split('@')[0]);
       console.log(`[awardGritToEmail] Created credential:`, JSON.stringify(credential));
     } catch (createErr) {
-      console.error(`[awardGritToEmail] Failed to create credential:`, createErr);
+      credentialError = createErr instanceof Error ? createErr.message : 'Unknown error creating credential';
+      console.error(`[awardGritToEmail] Failed to create credential:`, credentialError);
       // Continue anyway - the balance update might still work
     }
   } else {
@@ -416,10 +419,14 @@ export async function awardGritToEmail(
       body: JSON.stringify(body),
     });
     console.log(`[awardGritToEmail] Successfully awarded ${amount} GRIT to ${emailLower}`);
-    return true;
+    return { success: true };
   } catch (err) {
-    console.error(`[awardGritToEmail] Failed to award GRIT to ${emailLower}:`, err);
-    return false;
+    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[awardGritToEmail] Failed to award GRIT to ${emailLower}:`, errorMsg);
+    return {
+      success: false,
+      error: credentialError ? `Credential: ${credentialError}; Balance: ${errorMsg}` : errorMsg
+    };
   }
 }
 

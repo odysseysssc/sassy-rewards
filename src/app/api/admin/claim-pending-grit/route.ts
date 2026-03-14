@@ -83,14 +83,14 @@ export async function POST() {
         console.log(`[ClaimPending] Processing ${transaction.email}: ${transaction.amount} GRIT`);
 
         // Award the GRIT (awardGritToEmail now handles credential creation internally)
-        const awarded = await awardGritToEmail(
+        const awardResult = await awardGritToEmail(
           transaction.email,
           transaction.amount,
           `Claim pending: ${transaction.source} ${transaction.source_reference || ''}`
         );
-        console.log(`[ClaimPending] Award result for ${transaction.email}: ${awarded}`);
+        console.log(`[ClaimPending] Award result for ${transaction.email}:`, JSON.stringify(awardResult));
 
-        if (awarded) {
+        if (awardResult.success) {
           // Mark as claimed
           await supabase
             .from('grit_transactions')
@@ -107,7 +107,7 @@ export async function POST() {
             email: transaction.email,
             amount: transaction.amount,
             status: 'error',
-            error: 'awardGritToEmail returned false',
+            error: awardResult.error || 'awardGritToEmail returned false',
           });
         }
       } catch (e) {
