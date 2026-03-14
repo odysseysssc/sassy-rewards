@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/admin';
-import { createEmailCredential, awardGritToEmail, findCredentialByEmail } from '@/lib/drip';
+import { awardGritToEmail } from '@/lib/drip';
 
 // GET - Preview unclaimed GRIT transactions
 export async function GET() {
@@ -80,28 +80,15 @@ export async function POST() {
       }
 
       try {
-        // Check if credential exists
-        let credential = await findCredentialByEmail(transaction.email);
+        console.log(`[ClaimPending] Processing ${transaction.email}: ${transaction.amount} GRIT`);
 
-        // Create credential if it doesn't exist
-        if (!credential) {
-          console.log(`Creating credential for ${transaction.email}`);
-          try {
-            credential = await createEmailCredential(
-              transaction.email,
-              transaction.email.split('@')[0]
-            );
-          } catch (e) {
-            console.error(`Failed to create credential for ${transaction.email}:`, e);
-          }
-        }
-
-        // Award the GRIT
+        // Award the GRIT (awardGritToEmail now handles credential creation internally)
         const awarded = await awardGritToEmail(
           transaction.email,
           transaction.amount,
           `Claim pending: ${transaction.source} ${transaction.source_reference || ''}`
         );
+        console.log(`[ClaimPending] Award result for ${transaction.email}: ${awarded}`);
 
         if (awarded) {
           // Mark as claimed

@@ -373,6 +373,7 @@ export async function updateCredentialBalance(
 
 /**
  * Award GRIT to an email credential
+ * Creates the credential first if it doesn't exist
  */
 export async function awardGritToEmail(
   email: string,
@@ -383,20 +384,41 @@ export async function awardGritToEmail(
   const gritCurrencyId = process.env.DRIP_GRIT_CURRENCY_ID;
   if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
 
+  const emailLower = email.toLowerCase();
+  console.log(`[awardGritToEmail] Awarding ${amount} GRIT to ${emailLower}`);
+
+  // First ensure credential exists
+  let credential = await findCredentialByEmail(emailLower);
+  if (!credential) {
+    console.log(`[awardGritToEmail] No credential found, creating one for ${emailLower}`);
+    try {
+      credential = await createEmailCredential(emailLower, emailLower.split('@')[0]);
+      console.log(`[awardGritToEmail] Created credential:`, JSON.stringify(credential));
+    } catch (createErr) {
+      console.error(`[awardGritToEmail] Failed to create credential:`, createErr);
+      // Continue anyway - the balance update might still work
+    }
+  } else {
+    console.log(`[awardGritToEmail] Found existing credential:`, JSON.stringify(credential));
+  }
+
   try {
-    await dripFetch(
-      `/realms/${realmId}/credentials/balance?type=email&value=${encodeURIComponent(email.toLowerCase())}`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify({
-          amount,
-          ...(gritCurrencyId && { realmPointId: gritCurrencyId }),
-          ...(reason && { metadata: { reason } }),
-        }),
-      }
-    );
+    const url = `/realms/${realmId}/credentials/balance?type=email&value=${encodeURIComponent(emailLower)}`;
+    const body = {
+      amount,
+      ...(gritCurrencyId && { realmPointId: gritCurrencyId }),
+      ...(reason && { metadata: { reason } }),
+    };
+    console.log(`[awardGritToEmail] PATCH ${url}`, JSON.stringify(body));
+
+    await dripFetch(url, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+    console.log(`[awardGritToEmail] Successfully awarded ${amount} GRIT to ${emailLower}`);
     return true;
-  } catch {
+  } catch (err) {
+    console.error(`[awardGritToEmail] Failed to award GRIT to ${emailLower}:`, err);
     return false;
   }
 }
