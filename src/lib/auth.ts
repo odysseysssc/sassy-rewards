@@ -11,6 +11,24 @@ import {
   findCredential,
   linkCredentialToAccount,
 } from './drip';
+import { claimAndAwardPendingGrit } from './db';
+
+// Helper: Check for and claim pending GRIT after login
+async function checkAndClaimPendingGrit(userId: string, email: string | null, dripAccountId: string | null) {
+  if (!email || !dripAccountId) {
+    console.log('[checkAndClaimPendingGrit] Missing email or dripAccountId, skipping');
+    return;
+  }
+
+  try {
+    const result = await claimAndAwardPendingGrit(email, userId, dripAccountId);
+    if (result.awarded > 0) {
+      console.log(`[checkAndClaimPendingGrit] Claimed ${result.awarded} pending GRIT for ${email}`);
+    }
+  } catch (error) {
+    console.error('[checkAndClaimPendingGrit] Error:', error);
+  }
+}
 
 // Helper: Find user by any credential
 async function findUserByCredential(type: string, identifier: string) {
@@ -311,6 +329,9 @@ export const authOptions: NextAuthOptions = {
           // Get all linked credentials
           const creds = await getUserCredentials(user.id);
 
+          // Check for and claim any pending GRIT
+          await checkAndClaimPendingGrit(user.id, email, user.drip_account_id);
+
           return {
             id: user.id,
             email: creds.email,
@@ -389,6 +410,11 @@ export const authOptions: NextAuthOptions = {
           const creds = await getUserCredentials(user.id);
           console.log('[Wallet Auth] Credentials:', creds);
 
+          // Check for and claim any pending GRIT (using email if user has one)
+          if (creds.email) {
+            await checkAndClaimPendingGrit(user.id, creds.email, user.drip_account_id);
+          }
+
           return {
             id: user.id,
             email: creds.email,
@@ -466,6 +492,11 @@ export const authOptions: NextAuthOptions = {
             token.discordId = creds.discordId || discordId;
             token.dripAccountId = user.drip_account_id;
             token.authType = 'discord';
+
+            // Check for and claim any pending GRIT (using email if user has one)
+            if (creds.email && user.drip_account_id) {
+              await checkAndClaimPendingGrit(user.id, creds.email, user.drip_account_id);
+            }
           }
         } catch (error) {
           console.error('Discord auth error:', error);

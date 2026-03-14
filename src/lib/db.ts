@@ -367,3 +367,61 @@ export async function getTotalPendingGrit(email: string): Promise<number> {
   const pending = await getPendingGritForEmail(email);
   return pending.reduce((sum, t) => sum + t.amount, 0);
 }
+
+/**
+ * Claim pending GRIT and award to Drip account
+ * Called after user logs in and has a drip_account_id
+ */
+export async function claimAndAwardPendingGrit(
+  email: string,
+  userId: string,
+  dripAccountId: string
+): Promise<{ claimed: number; awarded: number }> {
+  // Import here to avoid circular dependency
+  const { awardGritToAccount } = await import('./drip');
+  const supabase = createServerClient();
+
+  // Get unclaimed transactions for this email
+  const { data: pending } = await supabase
+    .from('grit_transactions')
+    .select('*')
+    .eq('email', email.toLowerCase())
+    .eq('claimed', false);
+
+  if (!pending || pending.length === 0) {
+    return { claimed: 0, awarded: 0 };
+  }
+
+  let totalClaimed = 0;
+  let totalAwarded = 0;
+
+  for (const transaction of pending) {
+    // Try to award to Drip
+    const awarded = await awardGritToAccount(
+      dripAccountId,
+      transaction.amount,
+      `Pending claim: ${transaction.source} ${transaction.source_reference || ''}`
+    );
+
+    if (awarded) {
+      // Mark as claimed in database
+      await supabase
+        .from('grit_transactions')
+        .update({
+          claimed: true,
+          claimed_at: new Date().toISOString(),
+          user_id: userId,
+        })
+        .eq('id', transaction.id);
+
+      totalAwarded += transaction.amount;
+      console.log(`[claimAndAwardPendingGrit] Awarded ${transaction.amount} GRIT to ${email}`);
+    } else {
+      console.error(`[claimAndAwardPendingGrit] Failed to award ${transaction.amount} GRIT to ${email}`);
+    }
+
+    totalClaimed += transaction.amount;
+  }
+
+  return { claimed: totalClaimed, awarded: totalAwarded };
+}
