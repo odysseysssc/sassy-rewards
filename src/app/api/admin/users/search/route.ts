@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/admin';
-import { getMemberByAccountId, getMemberByEmail, searchMembersByUsername } from '@/lib/drip';
+import { getMemberByAccountId, getMemberByEmail, searchMembersByUsername, findCredentialByEmail } from '@/lib/drip';
 
 export async function GET(request: NextRequest) {
   const { isAdmin: authorized, error } = await requireAdmin();
@@ -134,6 +134,23 @@ export async function GET(request: NextRequest) {
         if (member) {
           gritBalance = member.points || 0;
           dripUsername = member.username || null;
+        }
+
+        // If still no balance, check for ghost credential with balance
+        if (gritBalance === 0 && user.email) {
+          try {
+            const credential = await findCredentialByEmail(user.email);
+            if (credential?.balances && credential.balances.length > 0) {
+              // Sum up all balances on the credential
+              const totalBalance = credential.balances.reduce((sum, b) => sum + (b.balance || 0), 0);
+              if (totalBalance > 0) {
+                gritBalance = totalBalance;
+                console.log(`[Search] Found ghost credential balance for ${user.email}: ${totalBalance}`);
+              }
+            }
+          } catch (e) {
+            console.error('Error fetching credential balance for user:', user.id, e);
+          }
         }
 
         return {
