@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/admin';
-import { getMemberByAccountId, searchMembersByUsername } from '@/lib/drip';
+import { getMemberByAccountId, getMemberByEmail, searchMembersByUsername } from '@/lib/drip';
 
 export async function GET(request: NextRequest) {
   const { isAdmin: authorized, error } = await requireAdmin();
@@ -106,22 +106,36 @@ export async function GET(request: NextRequest) {
       .select('user_id, credential_type, identifier')
       .in('user_id', userIds.length > 0 ? userIds : ['none']);
 
-    // Fetch GRIT balance and Drip username for users with drip_account_id
+    // Fetch GRIT balance and Drip username for users
     const usersWithGrit = await Promise.all(
       uniqueUsers.map(async (user) => {
         let gritBalance = 0;
         let dripUsername = null;
+        let member = null;
+
+        // Try by drip_account_id first
         if (user.drip_account_id) {
           try {
-            const member = await getMemberByAccountId(user.drip_account_id);
-            if (member) {
-              gritBalance = member.points || 0;
-              dripUsername = member.username || null;
-            }
+            member = await getMemberByAccountId(user.drip_account_id);
           } catch (e) {
-            console.error('Error fetching GRIT for user:', user.id, e);
+            console.error('Error fetching GRIT by accountId for user:', user.id, e);
           }
         }
+
+        // If no drip_account_id or lookup failed, try by email
+        if (!member && user.email) {
+          try {
+            member = await getMemberByEmail(user.email);
+          } catch (e) {
+            console.error('Error fetching GRIT by email for user:', user.id, e);
+          }
+        }
+
+        if (member) {
+          gritBalance = member.points || 0;
+          dripUsername = member.username || null;
+        }
+
         return {
           ...user,
           credentials: (allCredentials || []).filter(c => c.user_id === user.id),
