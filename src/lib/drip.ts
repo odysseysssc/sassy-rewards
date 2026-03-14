@@ -372,129 +372,35 @@ export async function updateCredentialBalance(
 }
 
 /**
- * Create a Drip member directly with email credential
- * Returns the member/account ID
- */
-export async function createDripMemberWithEmail(
-  email: string,
-  username?: string
-): Promise<{ accountId: string | null; error?: string }> {
-  const realmId = process.env.DRIP_REALM_ID;
-  if (!realmId) return { accountId: null, error: 'DRIP_REALM_ID is not configured' };
-
-  const emailLower = email.toLowerCase();
-
-  try {
-    // Try to create member with email credential in one call
-    const response = await dripFetch(`/realms/${realmId}/members`, {
-      method: 'POST',
-      body: JSON.stringify({
-        name: username || emailLower.split('@')[0],
-        credentials: [{
-          provider: 'email',
-          providerId: emailLower,
-        }],
-      }),
-    });
-
-    console.log(`[createDripMemberWithEmail] Created member:`, JSON.stringify(response));
-    const accountId = response.data?.id || response.data?.accountId || response.id || response.accountId;
-    return { accountId };
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[createDripMemberWithEmail] Failed:`, errMsg);
-    return { accountId: null, error: errMsg };
-  }
-}
-
-/**
- * Award GRIT to an email - creates member if needed
+ * Award GRIT to an email - uses getOrCreateDripAccount which works during user login
+ * If no Drip account can be created/found, returns failure (GRIT stays pending)
  */
 export async function awardGritToEmail(
   email: string,
   amount: number,
   reason?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const realmId = process.env.DRIP_REALM_ID;
-  if (!realmId) return { success: false, error: 'DRIP_REALM_ID is not configured' };
-
   const emailLower = email.toLowerCase();
   console.log(`[awardGritToEmail] Awarding ${amount} GRIT to ${emailLower}`);
 
-  // Strategy 1: Check if member already exists
-  const existingMember = await getMemberByEmail(emailLower);
-  if (existingMember?.id) {
-    console.log(`[awardGritToEmail] Found existing member ${existingMember.id}`);
-    const awarded = await awardGritToAccount(existingMember.id, amount, reason);
-    return awarded
-      ? { success: true }
-      : { success: false, error: `awardGritToAccount failed for ${existingMember.id}` };
-  }
+  // Use the same function that works during login
+  const accountId = await getOrCreateDripAccount(emailLower, emailLower.split('@')[0]);
 
-  // Strategy 2: Check if credential exists with accountId
-  const credential = await findCredentialByEmail(emailLower);
-  if (credential?.accountId) {
-    console.log(`[awardGritToEmail] Found credential with accountId ${credential.accountId}`);
-    const awarded = await awardGritToAccount(credential.accountId, amount, reason);
-    return awarded
-      ? { success: true }
-      : { success: false, error: `awardGritToAccount failed for credential ${credential.accountId}` };
-  }
-
-  // Strategy 3: Create a new member with email
-  console.log(`[awardGritToEmail] No existing member/credential, creating new member`);
-  const createResult = await createDripMemberWithEmail(emailLower, emailLower.split('@')[0]);
-
-  if (createResult.accountId) {
-    console.log(`[awardGritToEmail] Created member ${createResult.accountId}, awarding GRIT`);
-    const awarded = await awardGritToAccount(createResult.accountId, amount, reason);
-    return awarded
-      ? { success: true }
-      : { success: false, error: `awardGritToAccount failed for new member ${createResult.accountId}` };
-  }
-
-  // Strategy 4: If member creation failed (maybe member exists), try finding again
-  if (createResult.error?.includes('409') || createResult.error?.includes('conflict')) {
-    console.log(`[awardGritToEmail] Member might exist, retrying lookup`);
-    const retryMember = await getMemberByEmail(emailLower);
-    if (retryMember?.id) {
-      const awarded = await awardGritToAccount(retryMember.id, amount, reason);
-      return awarded
-        ? { success: true }
-        : { success: false, error: `awardGritToAccount failed after retry for ${retryMember.id}` };
+  if (accountId) {
+    console.log(`[awardGritToEmail] Got accountId ${accountId}, awarding via member endpoint`);
+    const awarded = await awardGritToAccount(accountId, amount, reason);
+    if (awarded) {
+      return { success: true };
     }
+    return { success: false, error: `awardGritToAccount failed for ${accountId}` };
   }
 
-  // Strategy 5: Try creating credential and using credentials/balance endpoint
-  console.log(`[awardGritToEmail] Trying credential approach as fallback`);
-  try {
-    // Create credential first
-    try {
-      await createEmailCredential(emailLower, emailLower.split('@')[0]);
-      console.log(`[awardGritToEmail] Created email credential`);
-    } catch (e) {
-      console.log(`[awardGritToEmail] Credential creation error (might already exist):`, e);
-    }
-
-    // Try balance update
-    const gritCurrencyId = process.env.DRIP_GRIT_CURRENCY_ID;
-    await dripFetch(`/realms/${realmId}/credentials/balance?type=email&value=${encodeURIComponent(emailLower)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        amount,
-        ...(gritCurrencyId && { realmPointId: gritCurrencyId }),
-      }),
-    });
-    console.log(`[awardGritToEmail] Success via credentials/balance`);
-    return { success: true };
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-    console.error(`[awardGritToEmail] All strategies failed. Last error:`, errorMsg);
-    return {
-      success: false,
-      error: `Member creation: ${createResult.error || 'unknown'}. Credential balance: ${errorMsg}`
-    };
-  }
+  // No account - GRIT will stay pending until user logs in
+  console.log(`[awardGritToEmail] No Drip account for ${emailLower}, GRIT remains pending`);
+  return {
+    success: false,
+    error: `No Drip account found/created for ${emailLower}. User needs to log in first.`
+  };
 }
 
 /**
