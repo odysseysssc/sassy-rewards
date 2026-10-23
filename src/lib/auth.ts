@@ -274,6 +274,9 @@ export const authOptions: NextAuthOptions = {
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
+      // Discord now returns `iss=https://discord.com` on the OAuth callback (RFC 9207).
+      // NextAuth v4 rejects that unless the provider declares its issuer.
+      issuer: 'https://discord.com',
     }),
 
     // Email magic link (from Supabase callback)
