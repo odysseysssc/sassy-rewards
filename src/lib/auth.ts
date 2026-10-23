@@ -12,6 +12,7 @@ import {
   linkCredentialToAccount,
 } from './drip';
 import { claimAndAwardPendingGrit } from './db';
+import { verifyWalletChallenge } from './walletAuth';
 
 // Helper: Check for and claim pending GRIT after login
 async function checkAndClaimPendingGrit(userId: string, email: string | null, dripAccountId: string | null) {
@@ -279,20 +280,33 @@ export const authOptions: NextAuthOptions = {
       issuer: 'https://discord.com',
     }),
 
-    // Email magic link (from Supabase callback)
+    // Email magic link. The one-time token from the emailed link is verified and
+    // consumed HERE on the server; without a valid token there is no session.
     CredentialsProvider({
       id: 'email',
       name: 'Email',
       credentials: {
         email: { label: 'Email', type: 'email' },
-        supabaseUserId: { label: 'Supabase User ID', type: 'text' },
+        token: { label: 'Token', type: 'text' },
       },
       async authorize(credentials) {
-        if (!credentials?.email) return null;
+        if (!credentials?.email || !credentials?.token) return null;
 
         const email = credentials.email.toLowerCase();
 
         try {
+          // Atomically consume the token: only one request can delete (and so use) it.
+          const supabase = createServerClient();
+          const { data: consumed, error: consumeError } = await supabase
+            .from('magic_link_tokens')
+            .delete()
+            .eq('token', credentials.token)
+            .eq('email', email)
+            .select('expires_at');
+
+          if (consumeError || !consumed || consumed.length === 0) return null;
+          if (new Date(consumed[0].expires_at) < new Date()) return null;
+
           // Check if this email is already linked to a user
           let user = await findUserByCredential('email', email);
 
@@ -350,18 +364,17 @@ export const authOptions: NextAuthOptions = {
       },
     }),
 
-    // Wallet login
+    // Wallet login: requires a signature over a server-issued message (see lib/walletAuth).
     CredentialsProvider({
       id: 'wallet',
       name: 'Wallet',
       credentials: {
-        wallet: { label: 'Wallet Address', type: 'text' },
+        message: { label: 'Message', type: 'text' },
+        signature: { label: 'Signature', type: 'text' },
       },
       async authorize(credentials) {
-        console.log('[Wallet Auth] Starting with credentials:', credentials?.wallet?.slice(0, 10));
-        if (!credentials?.wallet) return null;
-
-        const wallet = credentials.wallet.toLowerCase();
+        const wallet = await verifyWalletChallenge(credentials?.message, credentials?.signature, 'login');
+        if (!wallet) return null;
 
         try {
           // Check if this wallet is already linked to a user
@@ -411,7 +424,6 @@ export const authOptions: NextAuthOptions = {
 
           // Get all linked credentials
           const creds = await getUserCredentials(user.id);
-          console.log('[Wallet Auth] Credentials:', creds);
 
           // Check for and claim any pending GRIT (using email if user has one)
           if (creds.email) {

@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount } from 'wagmi';
+import { useAccount, useSignMessage } from 'wagmi';
 import { Footer } from '@/components/Footer';
 
 export default function SignIn() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
 
   // Email magic link state
   const [email, setEmail] = useState('');
@@ -19,16 +20,46 @@ export default function SignIn() {
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
 
-  // Auto-sign in when wallet connects
-  useEffect(() => {
-    if (isConnected && address) {
-      signIn('wallet', { wallet: address, redirect: false }).then((result) => {
-        if (result?.ok) {
-          router.push('/');
-        }
+  // Wallet sign-in state
+  const [walletSigning, setWalletSigning] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const autoTriedFor = useRef<string | null>(null);
+
+  // Wallet sign-in: fetch a one-time message, have the wallet sign it (free, no tx),
+  // and let the server verify the signature.
+  const signInWithWallet = useCallback(async () => {
+    if (!address || walletSigning) return;
+    setWalletSigning(true);
+    setWalletError(null);
+    try {
+      const res = await fetch('/api/auth/wallet-challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, purpose: 'login' }),
       });
+      if (!res.ok) throw new Error('challenge');
+      const { message } = await res.json();
+      const signature = await signMessageAsync({ message });
+      const result = await signIn('wallet', { message, signature, redirect: false });
+      if (result?.ok) {
+        router.push('/');
+      } else {
+        setWalletError('Wallet sign-in failed. Please try again.');
+      }
+    } catch {
+      setWalletError('Signature was cancelled or failed. Tap "Sign in with wallet" to try again.');
+    } finally {
+      setWalletSigning(false);
     }
-  }, [isConnected, address, router]);
+  }, [address, walletSigning, signMessageAsync, router]);
+
+  // Prompt for the signature once, automatically, right after a wallet connects
+  useEffect(() => {
+    if (isConnected && address && autoTriedFor.current !== address) {
+      autoTriedFor.current = address;
+      signInWithWallet();
+    }
+  }, [isConnected, address, signInWithWallet]);
 
   // Handle email magic link submission
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -156,20 +187,24 @@ export default function SignIn() {
             <ConnectButton.Custom>
               {({ openConnectModal, mounted }) => {
                 const ready = mounted;
+                const connected = isConnected && !!address;
                 return (
                   <button
-                    onClick={openConnectModal}
-                    disabled={!ready}
-                    className="w-full flex items-center justify-center gap-3 bg-purple-darker hover:bg-purple-dark border border-white/10 hover:border-gold/30 rounded-lg px-6 py-4 transition-all"
+                    onClick={connected ? signInWithWallet : openConnectModal}
+                    disabled={!ready || walletSigning}
+                    className="w-full flex items-center justify-center gap-3 bg-purple-darker hover:bg-purple-dark border border-white/10 hover:border-gold/30 rounded-lg px-6 py-4 transition-all disabled:opacity-60"
                   >
                     <svg className="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
-                    <span className="text-white font-semibold">Connect Wallet</span>
+                    <span className="text-white font-semibold">
+                      {walletSigning ? 'Check your wallet to sign…' : connected ? 'Sign in with wallet' : 'Connect Wallet'}
+                    </span>
                   </button>
                 );
               }}
             </ConnectButton.Custom>
+            {walletError && <p className="text-red-400 text-sm text-center">{walletError}</p>}
 
             {/* Discord */}
             <button

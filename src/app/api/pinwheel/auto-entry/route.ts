@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionIdentity } from '@/lib/sessionIdentity';
 import { createServerClient } from '@/lib/supabase';
 import { getMemberByWallet, getMemberByAccountId } from '@/lib/drip';
 
@@ -36,7 +37,13 @@ export async function GET(request: NextRequest) {
 // POST - Toggle auto-entry for a wallet/accountId
 export async function POST(request: NextRequest) {
   try {
-    const { wallet, enabled } = await request.json();
+    const identity = await getSessionIdentity();
+    if (!identity) {
+      return NextResponse.json({ error: 'Please sign in to change auto-entry' }, { status: 401 });
+    }
+    const { enabled } = await request.json();
+    // Identity comes from the session only; same identifier format the client used (accountId, else wallet)
+    const wallet = identity.accountId || identity.wallet;
 
     if (!wallet) {
       return NextResponse.json(

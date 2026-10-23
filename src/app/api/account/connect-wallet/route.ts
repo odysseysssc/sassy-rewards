@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase';
 import { getMemberByWallet, linkCredentialToAccount, findCredential } from '@/lib/drip';
+import { verifyWalletChallenge } from '@/lib/walletAuth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,10 +13,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { wallet } = await request.json();
+    const { message, signature } = await request.json();
 
+    // Require proof of ownership: a signature over a challenge bound to this user
+    const wallet = await verifyWalletChallenge(message, signature, 'link', session.user.id);
     if (!wallet) {
-      return NextResponse.json({ error: 'Wallet address is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Wallet signature invalid or expired. Please try again.' }, { status: 400 });
     }
 
     const walletLower = wallet.toLowerCase();

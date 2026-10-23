@@ -1,7 +1,5 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
-import { useAccount } from 'wagmi';
 import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -11,20 +9,14 @@ interface LeaderboardEntry {
   rank: number;
   wallet?: string;
   username?: string;
-  email?: string;
-  accountId?: string;
   points: number;
+  isMe?: boolean;
 }
 
 export default function Leaderboard() {
-  const { data: session } = useSession();
-  const { address } = useAccount();
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const displayWallet = session?.user?.wallet || address;
-  const displayEmail = session?.user?.email;
-  const dripAccountId = session?.user?.dripAccountId;
 
   useEffect(() => {
     async function fetchLeaderboard() {
@@ -44,19 +36,8 @@ export default function Leaderboard() {
     fetchLeaderboard();
   }, []);
 
-  // Check if entry matches current user by any identifier
-  const isCurrentUser = (entry: LeaderboardEntry) => {
-    if (dripAccountId && entry.accountId && entry.accountId === dripAccountId) {
-      return true;
-    }
-    if (displayEmail && entry.email && entry.email.toLowerCase() === displayEmail.toLowerCase()) {
-      return true;
-    }
-    if (displayWallet && entry.wallet && entry.wallet.toLowerCase() === displayWallet.toLowerCase()) {
-      return true;
-    }
-    return false;
-  };
+  // The server flags the signed-in user's own row
+  const isCurrentUser = (entry: LeaderboardEntry) => !!entry.isMe;
 
   const getDisplayName = (entry: LeaderboardEntry) => {
     return entry.username || (entry.wallet ? truncateWallet(entry.wallet) : 'Anonymous');

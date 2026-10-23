@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionIdentity } from '@/lib/sessionIdentity';
 import { createServerClient } from '@/lib/supabase';
 import { getMemberByWallet, getMemberByAccountId, deductGrit } from '@/lib/drip';
 import { RAFFLE_COST } from '@/lib/constants';
@@ -23,7 +24,13 @@ function getDrawDate(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { wallet, accountId } = await request.json();
+    const identity = await getSessionIdentity();
+    if (!identity) {
+      return NextResponse.json({ error: 'Please sign in to enter' }, { status: 401 });
+    }
+    // Identity comes from the session only (never the request body)
+    const accountId = identity.accountId;
+    const wallet = identity.accountId ? undefined : identity.wallet;
 
     if (!wallet && !accountId) {
       return NextResponse.json(

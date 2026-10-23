@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getLeaderboard } from '@/lib/drip';
 import { createServerClient } from '@/lib/supabase';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 // Disable caching for leaderboard to ensure fresh data
 export const dynamic = 'force-dynamic';
@@ -25,13 +27,22 @@ export async function GET() {
       }
     });
 
-    // Merge local display names with leaderboard data
+    // Who is asking (to flag their own row) - computed server-side so internal IDs never leave
+    const session = await getServerSession(authOptions);
+    const myAccountId = session?.user?.dripAccountId;
+    const myWallet = session?.user?.wallet?.toLowerCase();
+
+    // Public shape: rank, name, points, truncated wallet, isMe. No Drip account IDs
+    // (those were enough to act on other users' GRIT) and no full wallet addresses.
     const leaderboardWithNames = leaderboard.map(entry => ({
-      ...entry,
-      // Use local display name if available, otherwise keep original
+      rank: entry.rank,
+      points: entry.points,
       username: entry.accountId && displayNameMap[entry.accountId]
         ? displayNameMap[entry.accountId]
         : entry.username,
+      wallet: entry.wallet ? `${entry.wallet.slice(0, 6)}...${entry.wallet.slice(-4)}` : undefined,
+      isMe: !!((myAccountId && entry.accountId === myAccountId) ||
+               (myWallet && entry.wallet?.toLowerCase() === myWallet)),
     }));
 
     return NextResponse.json({ leaderboard: leaderboardWithNames }, {

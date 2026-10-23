@@ -396,7 +396,9 @@ export async function claimAndAwardPendingGrit(
   let totalAwarded = 0;
 
   for (const transaction of pending) {
-    // Try to award to Drip
+    // Take ownership first so parallel logins / webhook retries can't pay the same row twice
+    if (!(await claimTransaction(transaction.id))) continue;
+
     const awarded = await awardGritToAccount(
       dripAccountId,
       transaction.amount,
@@ -404,24 +406,33 @@ export async function claimAndAwardPendingGrit(
     );
 
     if (awarded) {
-      // Mark as claimed in database
-      await supabase
-        .from('grit_transactions')
-        .update({
-          claimed: true,
-          claimed_at: new Date().toISOString(),
-          user_id: userId,
-        })
-        .eq('id', transaction.id);
-
+      await supabase.from('grit_transactions').update({ user_id: userId }).eq('id', transaction.id);
       totalAwarded += transaction.amount;
-      console.log(`[claimAndAwardPendingGrit] Awarded ${transaction.amount} GRIT to ${email}`);
     } else {
-      console.error(`[claimAndAwardPendingGrit] Failed to award ${transaction.amount} GRIT to ${email}`);
+      await unclaimTransaction(transaction.id);
+      console.error(`[claimAndAwardPendingGrit] Failed to award pending GRIT (tx ${transaction.id})`);
     }
 
     totalClaimed += transaction.amount;
   }
 
   return { claimed: totalClaimed, awarded: totalAwarded };
+}
+
+/** Atomically mark an unclaimed transaction as claimed. True only for the one caller that wins. */
+export async function claimTransaction(id: string): Promise<boolean> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from('grit_transactions')
+    .update({ claimed: true, claimed_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('claimed', false)
+    .select('id');
+  return !error && !!data && data.length === 1;
+}
+
+/** Release a claim after a failed payout so it can be retried later. */
+export async function unclaimTransaction(id: string): Promise<void> {
+  const supabase = createServerClient();
+  await supabase.from('grit_transactions').update({ claimed: false, claimed_at: null }).eq('id', id);
 }

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isAuthorizedCron } from '@/lib/cronAuth';
+import { randomInt } from 'crypto';
 import { createServerClient } from '@/lib/supabase';
 import { PINS, LEGACY_PINS, ALL_AWARD_PINS } from '@/lib/constants';
 import { getMemberByWallet, getMemberByAccountId } from '@/lib/drip';
@@ -150,14 +152,17 @@ async function runDraw() {
   const supabase = createServerClient();
   const today = new Date().toISOString().split('T')[0];
 
-  // Check if draw already happened today
-  const { data: existingWinner } = await supabase
+  // Check if the daily draw already happened today. Ignore admin-awarded golden tickets,
+  // which also live in pinwheel_winners (previously one golden ticket cancelled the draw,
+  // and two made .single() fail so every call drew again).
+  const { data: existingWinners } = await supabase
     .from('pinwheel_winners')
     .select('id')
     .eq('date_won', today)
-    .single();
+    .or('source.is.null,source.neq.golden_ticket')
+    .limit(1);
 
-  if (existingWinner) {
+  if (existingWinners && existingWinners.length > 0) {
     return NextResponse.json(
       { error: 'Draw already completed for today' },
       { status: 400 }
@@ -186,12 +191,12 @@ async function runDraw() {
     });
   }
 
-  // Randomly select winner
-  const winnerIndex = Math.floor(Math.random() * entries.length);
+  // Randomly select winner (cryptographically secure)
+  const winnerIndex = randomInt(entries.length);
   const winnerWallet = entries[winnerIndex].wallet_address;
 
   // Randomly select pin (equal probability)
-  const pinIndex = Math.floor(Math.random() * PINS.length);
+  const pinIndex = randomInt(PINS.length);
   const pinWon = PINS[pinIndex].name;
 
   // Save winner
@@ -228,17 +233,12 @@ async function runDraw() {
   });
 }
 
-// Check authorization for manual triggers
-function checkAuth(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization');
-  const expectedKey = process.env.CRON_SECRET || process.env.ADMIN_API_KEY;
-  if (!expectedKey) return false;
-  return authHeader === `Bearer ${expectedKey}`;
-}
-
-// GET handler for Vercel cron job (no auth required - Hobby plan compatible)
-// Protected by: only one draw per day, Vercel cron is the only expected caller
-export async function GET() {
+// GET handler for the Vercel cron job. Requires `Authorization: Bearer $CRON_SECRET`,
+// which Vercel adds automatically once CRON_SECRET is set in the project env.
+export async function GET(request: NextRequest) {
+  if (!isAuthorizedCron(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     console.log('Draw triggered by cron job at', new Date().toISOString());
     return await runDraw();
@@ -253,7 +253,7 @@ export async function GET() {
 
 // POST handler for admin/manual triggers (auth required)
 export async function POST(request: NextRequest) {
-  if (!checkAuth(request)) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

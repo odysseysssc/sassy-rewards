@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase';
 import { requireAdmin } from '@/lib/admin';
 import { awardGritToEmail } from '@/lib/drip';
+import { claimTransaction, unclaimTransaction } from '@/lib/db';
 
 // GET - Preview unclaimed GRIT transactions
 export async function GET() {
@@ -80,7 +81,8 @@ export async function POST() {
       }
 
       try {
-        console.log(`[ClaimPending] Processing ${transaction.email}: ${transaction.amount} GRIT`);
+        // Take ownership first; skip if a login or webhook already claimed it
+        if (!(await claimTransaction(transaction.id))) continue;
 
         // Award the GRIT (awardGritToEmail now handles credential creation internally)
         const awardResult = await awardGritToEmail(
@@ -88,21 +90,15 @@ export async function POST() {
           transaction.amount,
           `Claim pending: ${transaction.source} ${transaction.source_reference || ''}`
         );
-        console.log(`[ClaimPending] Award result for ${transaction.email}:`, JSON.stringify(awardResult));
 
         if (awardResult.success) {
-          // Mark as claimed
-          await supabase
-            .from('grit_transactions')
-            .update({ claimed: true, claimed_at: new Date().toISOString() })
-            .eq('id', transaction.id);
-
           results.push({
             email: transaction.email,
             amount: transaction.amount,
             status: 'claimed',
           });
         } else {
+          await unclaimTransaction(transaction.id);
           results.push({
             email: transaction.email,
             amount: transaction.amount,

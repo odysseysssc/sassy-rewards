@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { findUserByEmail, createGritTransaction } from '@/lib/db';
+import { findUserByEmail, claimTransaction, unclaimTransaction } from '@/lib/db';
 import { awardGritToAccount, awardGritToEmail } from '@/lib/drip';
+import { createServerClient } from '@/lib/supabase';
 
 const GRIT_PER_DOLLAR = 10;
 
-// Verify Shopify webhook signature
+// Verify Shopify webhook signature (HMAC-SHA256 of the raw body, base64)
 function verifyShopifyWebhook(body: string, signature: string, secret: string): boolean {
-  const hmac = crypto.createHmac('sha256', secret);
-  hmac.update(body, 'utf8');
-  const hash = hmac.digest('base64');
-  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(signature));
+  const expected = crypto.createHmac('sha256', secret).update(body, 'utf8').digest('base64');
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signature);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+async function award(email: string, amount: number, orderId: string): Promise<{ ok: boolean; userId?: string; error?: string }> {
+  const user = await findUserByEmail(email);
+  if (user?.drip_account_id) {
+    const ok = await awardGritToAccount(user.drip_account_id, amount, `Shopify order ${orderId}`);
+    return { ok, userId: user.id, error: ok ? undefined : 'Drip award failed' };
+  }
+  const result = await awardGritToEmail(email, amount, `Shopify order ${orderId}`);
+  return { ok: !!result.success, error: result.error };
 }
 
 export async function POST(request: NextRequest) {
@@ -19,116 +30,79 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get('x-shopify-hmac-sha256');
     const webhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET;
 
-    // Verify webhook signature if secret is configured
-    if (webhookSecret && signature) {
-      const isValid = verifyShopifyWebhook(body, signature, webhookSecret);
-      if (!isValid) {
-        console.error('Invalid Shopify webhook signature');
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-      }
+    // Signature is mandatory. Missing secret or header = reject.
+    if (!webhookSecret) {
+      console.error('[Shopify] SHOPIFY_WEBHOOK_SECRET is not configured; rejecting webhook');
+      return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+    }
+    if (!signature || !verifyShopifyWebhook(body, signature, webhookSecret)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const order = JSON.parse(body);
-
-    // Extract customer email and order total
-    const customerEmail = order.customer?.email || order.email;
+    const customerEmail: string | undefined = (order.customer?.email || order.email)?.toLowerCase();
     const orderTotal = parseFloat(order.total_price || '0');
-    const orderId = order.id?.toString() || order.order_number?.toString();
+    const orderId: string | undefined = order.id?.toString() || order.order_number?.toString();
 
-    if (!customerEmail) {
-      console.log('No customer email in order');
-      return NextResponse.json({ error: 'No customer email' }, { status: 400 });
-    }
+    if (!customerEmail) return NextResponse.json({ error: 'No customer email' }, { status: 400 });
+    if (!orderId) return NextResponse.json({ error: 'No order id' }, { status: 400 });
+    if (!(orderTotal > 0)) return NextResponse.json({ error: 'Invalid order total' }, { status: 400 });
 
-    if (orderTotal <= 0) {
-      console.log('Invalid order total');
-      return NextResponse.json({ error: 'Invalid order total' }, { status: 400 });
-    }
-
-    // Calculate GRIT to award
     const gritAmount = Math.floor(orderTotal * GRIT_PER_DOLLAR);
+    const supabase = createServerClient();
 
-    console.log(`Processing order for ${customerEmail}: $${orderTotal} = ${gritAmount} GRIT`);
+    // Idempotency: one grit_transactions row per Shopify order.
+    let { data: tx } = await supabase
+      .from('grit_transactions')
+      .select('id, claimed')
+      .eq('source', 'shopify')
+      .eq('source_reference', orderId)
+      .maybeSingle();
 
-    // Check if user exists in our database
-    const user = await findUserByEmail(customerEmail);
+    if (tx?.claimed) {
+      return NextResponse.json({ success: true, duplicate: true, orderId });
+    }
 
-    if (user?.drip_account_id) {
-      // User exists with Drip account - award GRIT immediately
-      const awarded = await awardGritToAccount(user.drip_account_id, gritAmount, `Shopify order ${orderId}`);
-
-      if (awarded) {
-        // Record transaction as claimed
-        await createGritTransaction(
-          customerEmail,
-          gritAmount,
-          'shopify',
-          orderId,
-          user.id,
-          true
-        );
-
-        console.log(`Awarded ${gritAmount} GRIT to ${customerEmail} (account: ${user.drip_account_id})`);
-        return NextResponse.json({
-          success: true,
+    if (!tx) {
+      // Record the order first (unclaimed), then pay. A unique index on
+      // (source, source_reference) makes concurrent duplicate deliveries fail here.
+      const { data: inserted, error: insertError } = await supabase
+        .from('grit_transactions')
+        .insert({
           email: customerEmail,
-          gritAwarded: gritAmount,
-        });
-      } else {
-        console.error(`Failed to award GRIT to ${customerEmail}`);
-        return NextResponse.json({
-          success: false,
-          error: 'Failed to award GRIT',
-        }, { status: 500 });
+          amount: gritAmount,
+          source: 'shopify',
+          source_reference: orderId,
+          claimed: false,
+        })
+        .select('id, claimed')
+        .single();
+      if (insertError) {
+        if (insertError.code === '23505') {
+          return NextResponse.json({ success: true, duplicate: true, orderId });
+        }
+        throw insertError;
       }
+      tx = inserted;
     }
 
-    // No user in DB with drip_account_id - award to email credential
-    console.log(`[Shopify] No user account found, awarding to email credential: ${customerEmail}`);
-
-    // Award GRIT (awardGritToEmail handles credential creation internally)
-    const awardResult = await awardGritToEmail(customerEmail, gritAmount, `Shopify order ${orderId}`);
-    console.log(`[Shopify] Award result:`, JSON.stringify(awardResult));
-
-    if (awardResult.success) {
-      // Record transaction - mark as claimed since GRIT was actually awarded
-      await createGritTransaction(
-        customerEmail,
-        gritAmount,
-        'shopify',
-        orderId,
-        undefined,
-        true  // Mark as claimed since we successfully awarded to Drip
-      );
-
-      console.log(`[Shopify] Successfully awarded ${gritAmount} GRIT to ${customerEmail}`);
-      return NextResponse.json({
-        success: true,
-        email: customerEmail,
-        gritAwarded: gritAmount,
-        message: 'GRIT awarded to email credential',
-      });
+    // Atomically take ownership of this transaction before paying out.
+    if (!tx || !(await claimTransaction(tx.id))) {
+      return NextResponse.json({ success: true, duplicate: true, orderId });
     }
 
-    // Award failed - record as pending so we can retry later
-    console.error(`[Shopify] Failed to award GRIT to ${customerEmail}: ${awardResult.error}`);
-    await createGritTransaction(
-      customerEmail,
-      gritAmount,
-      'shopify',
-      orderId,
-      undefined,
-      false  // Mark as unclaimed so we can retry
-    );
+    const result = await award(customerEmail, gritAmount, orderId);
+    if (!result.ok) {
+      await unclaimTransaction(tx.id); // leave pending; Shopify retry or next login will pay it
+      console.error(`[Shopify] Failed to award GRIT for order ${orderId}: ${result.error}`);
+      return NextResponse.json({ success: false, pendingGrit: gritAmount, error: 'Award failed, recorded as pending' }, { status: 500 });
+    }
 
-    // Return 500 so Shopify knows it failed and might retry
-    return NextResponse.json({
-      success: false,
-      email: customerEmail,
-      pendingGrit: gritAmount,
-      error: awardResult.error || 'Failed to award GRIT to Drip, recorded as pending',
-    }, { status: 500 });
+    if (result.userId) {
+      await supabase.from('grit_transactions').update({ user_id: result.userId }).eq('id', tx.id);
+    }
 
+    return NextResponse.json({ success: true, gritAwarded: gritAmount, orderId });
   } catch (error) {
     console.error('Shopify webhook error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

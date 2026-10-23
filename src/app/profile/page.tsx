@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession, signIn } from 'next-auth/react';
-import { useAccount, useDisconnect } from 'wagmi';
+import { useAccount, useDisconnect, useSignMessage } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -68,6 +68,7 @@ function ProfileContent() {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { disconnect } = useDisconnect();
+  const { signMessageAsync } = useSignMessage();
 
   const [gritBalance, setGritBalance] = useState<number | null>(null);
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -327,10 +328,29 @@ function ProfileContent() {
     setWalletLinkError('');
 
     try {
+      // Prove ownership: sign a one-time message bound to this account (free, no tx)
+      const challengeRes = await fetch('/api/auth/wallet-challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: walletAddress, purpose: 'link' }),
+      });
+      if (!challengeRes.ok) {
+        setWalletLinkError('Could not start wallet verification. Please try again.');
+        return false;
+      }
+      const { message } = await challengeRes.json();
+      let signature: string;
+      try {
+        signature = await signMessageAsync({ message });
+      } catch {
+        setWalletLinkError('Signature cancelled. Connect again and approve the signature to link your wallet.');
+        return false;
+      }
+
       const res = await fetch('/api/account/connect-wallet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wallet: walletAddress }),
+        body: JSON.stringify({ message, signature }),
       });
 
       if (res.ok) {
@@ -347,7 +367,7 @@ function ProfileContent() {
     } finally {
       setWalletLinking(false);
     }
-  }, [session?.user?.id, walletLinking, fetchCredentials]);
+  }, [session?.user?.id, walletLinking, fetchCredentials, signMessageAsync]);
 
   // Handle wallet connection for linking
   const handleConnectWallet = () => {

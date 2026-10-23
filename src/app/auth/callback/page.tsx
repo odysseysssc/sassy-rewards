@@ -26,24 +26,10 @@ function AuthCallbackContent() {
 
         setStatus('Verifying magic link...');
 
-        // Verify the token via API
-        const verifyRes = await fetch('/api/auth/verify-magic-link', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, email }),
-        });
-
-        if (!verifyRes.ok) {
-          const data = await verifyRes.json();
-          setError(data.error || 'Invalid or expired link. Please try again.');
-          return;
-        }
-
-        setStatus('Creating your session...');
-
-        // Sign in to NextAuth with email credentials
+        // The server verifies and consumes the one-time token inside the sign-in itself.
         const result = await signIn('email', {
-          email: email,
+          email,
+          token,
           redirect: false,
         });
 
@@ -51,8 +37,7 @@ function AuthCallbackContent() {
           setStatus('Success! Redirecting...');
           router.push('/');
         } else {
-          console.error('NextAuth sign in failed:', result?.error);
-          setError('Failed to create session. Please try again.');
+          setError('This link is invalid, expired or already used. Please request a new one.');
         }
       } catch (err) {
         console.error('Auth callback error:', err);

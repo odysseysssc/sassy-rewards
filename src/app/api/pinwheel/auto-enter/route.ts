@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isAuthorizedCron } from '@/lib/cronAuth';
 import { createServerClient } from '@/lib/supabase';
 import { getMemberByWallet, getMemberByAccountId, deductGrit } from '@/lib/drip';
 import { RAFFLE_COST } from '@/lib/constants';
@@ -191,8 +192,11 @@ async function processAutoEntries(): Promise<{
   };
 }
 
-// GET - Called by Vercel Cron at 7:55pm UTC
-export async function GET() {
+// GET - Called by Vercel Cron at 7:55pm UTC (requires Bearer CRON_SECRET)
+export async function GET(request: NextRequest) {
+  if (!isAuthorizedCron(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     console.log('Starting auto-entry processing...');
     const result = await processAutoEntries();
@@ -213,10 +217,7 @@ export async function GET() {
 
 // POST - Manual trigger with auth
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  const expectedKey = process.env.CRON_SECRET || process.env.ADMIN_API_KEY;
-
-  if (!expectedKey || authHeader !== `Bearer ${expectedKey}`) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

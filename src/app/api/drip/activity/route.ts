@@ -1,18 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { getSessionMember } from '@/lib/sessionIdentity';
 
 const DRIP_API_BASE = 'https://api.drip.re/api/v1';
 
-export async function GET(request: NextRequest) {
+// Returns recent GRIT activity for the signed-in user only (memberId query param ignored).
+export async function GET() {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const memberId = searchParams.get('memberId');
-
-    if (!memberId) {
-      return NextResponse.json(
-        { error: 'Member ID is required' },
-        { status: 400 }
-      );
+    const { authed, member } = await getSessionMember();
+    if (!authed) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (!member?.id) {
+      return NextResponse.json({ activity: [] });
+    }
+    const memberId = encodeURIComponent(String(member.id));
 
     const apiKey = process.env.DRIP_API_KEY;
     const realmId = process.env.DRIP_REALM_ID;
