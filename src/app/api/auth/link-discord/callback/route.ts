@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase';
+import { getOrCreateDripAccountByDiscord, linkCredentialToAccount, linkEmailCredentialToAccount } from '@/lib/drip';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -102,6 +103,36 @@ export async function GET(request: NextRequest) {
         console.error('Failed to link Discord:', insertError);
         return NextResponse.redirect(new URL('/profile?error=link_failed', process.env.NEXTAUTH_URL!));
       }
+    }
+
+    // Drip: make sure the user has an account (email-only users don't), link the
+    // Discord credential to it, and move any GRIT held on their email into it.
+    try {
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('drip_account_id, email')
+        .eq('id', userId)
+        .single();
+
+      let accountId: string | null = userRow?.drip_account_id || null;
+      if (!accountId) {
+        accountId = await getOrCreateDripAccountByDiscord(discordId, discordUser.username);
+        if (accountId) {
+          await supabase
+            .from('users')
+            .update({ drip_account_id: accountId, updated_at: new Date().toISOString() })
+            .eq('id', userId);
+        }
+      } else {
+        await linkCredentialToAccount('discord-id', discordId, accountId);
+      }
+
+      if (accountId && userRow?.email) {
+        await linkEmailCredentialToAccount(userRow.email, accountId);
+      }
+    } catch (dripError) {
+      // Non-fatal: the Discord link itself succeeded
+      console.error('Discord link: Drip account/link step failed:', dripError instanceof Error ? dripError.message : dripError);
     }
 
     // Success - redirect back to profile

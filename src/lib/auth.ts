@@ -10,9 +10,21 @@ import {
   getOrCreateDripAccountByDiscord,
   findCredential,
   linkCredentialToAccount,
+  linkEmailCredentialToAccount,
 } from './drip';
 import { claimAndAwardPendingGrit } from './db';
 import { verifyWalletChallenge } from './walletAuth';
+
+// Move any GRIT held on the person's email credential (e.g. Shopify orders placed
+// before they had an account) into their Drip account. Safe to call repeatedly.
+async function linkEmailGrit(email: string | null | undefined, accountId: string | null | undefined) {
+  if (!email || !accountId) return;
+  try {
+    await linkEmailCredentialToAccount(email, accountId);
+  } catch (error) {
+    console.error('[linkEmailGrit] failed:', error instanceof Error ? error.message : error);
+  }
+}
 
 // Helper: Check for and claim pending GRIT after login
 async function checkAndClaimPendingGrit(userId: string, email: string | null, dripAccountId: string | null) {
@@ -331,17 +343,13 @@ export const authOptions: NextAuthOptions = {
               user = await createUserWithCredential('email', email, dripAccountId || undefined);
             }
 
-            // Link email credential to Drip account (claims any ghost GRIT)
-            if (dripAccountId) {
-              try {
-                await linkCredentialToAccount('email', email, dripAccountId);
-              } catch (e) {
-                console.error('Failed to link email credential:', e);
-              }
-            }
+
           }
 
           if (!user) return null;
+
+          // Move any GRIT held on this email into the account
+          await linkEmailGrit(email, user.drip_account_id);
 
           // Get all linked credentials
           const creds = await getUserCredentials(user.id);
@@ -427,6 +435,7 @@ export const authOptions: NextAuthOptions = {
 
           // Check for and claim any pending GRIT (using email if user has one)
           if (creds.email) {
+            await linkEmailGrit(creds.email, user.drip_account_id);
             await checkAndClaimPendingGrit(user.id, creds.email, user.drip_account_id);
           }
 
@@ -447,7 +456,27 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user, account, trigger }) {
+      // Client called update(): reload account details from the database
+      if (trigger === 'update' && token.id) {
+        try {
+          const supabase = createServerClient();
+          const { data: row } = await supabase
+            .from('users')
+            .select('drip_account_id')
+            .eq('id', token.id as string)
+            .single();
+          const creds = await getUserCredentials(token.id as string);
+          token.dripAccountId = row?.drip_account_id ?? token.dripAccountId;
+          token.email = creds.email ?? token.email;
+          token.wallet = creds.wallet ?? token.wallet;
+          token.discordId = creds.discordId ?? token.discordId;
+        } catch (error) {
+          console.error('[jwt update] refresh failed:', error instanceof Error ? error.message : error);
+        }
+        return token;
+      }
+
       // Discord OAuth sign-in
       if (account?.provider === 'discord') {
         const discordId = account.providerAccountId;
@@ -510,6 +539,7 @@ export const authOptions: NextAuthOptions = {
 
             // Check for and claim any pending GRIT (using email if user has one)
             if (creds.email && user.drip_account_id) {
+              await linkEmailGrit(creds.email, user.drip_account_id);
               await checkAndClaimPendingGrit(user.id, creds.email, user.drip_account_id);
             }
           }

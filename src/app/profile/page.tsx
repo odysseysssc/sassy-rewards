@@ -3,7 +3,7 @@
 import { useSession, signIn } from 'next-auth/react';
 import { useAccount, useDisconnect, useSignMessage } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -64,7 +64,8 @@ interface Prize {
 function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
+  const sessionRefreshed = useRef(false);
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { disconnect } = useDisconnect();
@@ -229,10 +230,15 @@ function ProfileContent() {
   useEffect(() => {
     if (searchParams.get('discord_linked') === 'true' || searchParams.get('email_linked') === 'true') {
       fetchCredentials();
+      // Refresh the session once so a newly created/linked Drip account shows immediately
+      if (!sessionRefreshed.current) {
+        sessionRefreshed.current = true;
+        updateSession();
+      }
       // Clean up URL
       router.replace('/profile', { scroll: false });
     }
-  }, [searchParams, fetchCredentials, router]);
+  }, [searchParams, fetchCredentials, router, updateSession]);
 
   // Handle email connection
   const handleConnectEmail = async (e: React.FormEvent) => {

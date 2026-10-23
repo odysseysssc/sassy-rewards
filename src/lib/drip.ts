@@ -254,7 +254,8 @@ export async function findCredential(
 
 // Convenience wrapper for email
 export async function findCredentialByEmail(email: string): Promise<DripCredential | null> {
-  return findCredential('email', email);
+  // Checks both storage forms (type=email and custom/email)
+  return (await findEmailCredential(email))?.credential ?? null;
 }
 
 /**
@@ -371,9 +372,89 @@ export async function updateCredentialBalance(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Email credentials
+//
+// In this realm, POST /credentials/social with provider "email" does NOT create an
+// `email`-type credential: Drip stores it as type `custom` with source `email`
+// (oauth format). Lookups/balances/links with type=email therefore 404 for those
+// people, which is why Shopify payouts to non-members failed from Jan-Oct 2026.
+// Some older credentials do exist as real `email` type, so we check both.
+// ---------------------------------------------------------------------------
+
+export type EmailCredentialKind = 'email' | 'custom';
+
+function emailCredentialQuery(kind: EmailCredentialKind, email: string): string {
+  const value = encodeURIComponent(email.toLowerCase());
+  return kind === 'email' ? `type=email&value=${value}` : `type=custom&source=email&value=${value}`;
+}
+
+/** Find a person's email credential in Drip (either storage form). */
+export async function findEmailCredential(
+  email: string
+): Promise<{ kind: EmailCredentialKind; credential: DripCredential } | null> {
+  const realmId = process.env.DRIP_REALM_ID;
+  if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
+  for (const kind of ['email', 'custom'] as EmailCredentialKind[]) {
+    try {
+      const response = await dripFetch(`/realms/${realmId}/credentials/find?${emailCredentialQuery(kind, email)}`);
+      const credential = response?.data || response;
+      if (credential?.id) return { kind, credential };
+    } catch {
+      // 404 = not in this form; try the next
+    }
+  }
+  return null;
+}
+
+/** Find the email credential, creating it (as Drip does: custom/email) if missing. */
+export async function ensureEmailCredential(email: string, username?: string) {
+  const existing = await findEmailCredential(email);
+  if (existing) return existing;
+  try {
+    await createEmailCredential(email.toLowerCase(), username);
+  } catch {
+    // 409 = already exists in some form; fall through to lookup
+  }
+  return findEmailCredential(email);
+}
+
+/** GRIT currently held on a person's (unlinked) email credential. */
+export async function getEmailCredentialGrit(email: string): Promise<number> {
+  const found = await findEmailCredential(email);
+  const gritId = process.env.DRIP_GRIT_CURRENCY_ID;
+  const balances = found?.credential?.balances || [];
+  const entry = gritId ? balances.find((b) => b.currencyId === gritId) : balances[0];
+  return entry?.balance || 0;
+}
+
 /**
- * Award GRIT to an email - uses getOrCreateDripAccount which works during user login
- * If no Drip account can be created/found, returns failure (GRIT stays pending)
+ * Link a person's email credential to their Drip account. Moves any GRIT held on it
+ * into the account. No-op if there is no credential or it is already linked.
+ */
+export async function linkEmailCredentialToAccount(email: string, accountId: string): Promise<boolean> {
+  const realmId = process.env.DRIP_REALM_ID;
+  if (!realmId) throw new Error('DRIP_REALM_ID is not configured');
+  const found = await findEmailCredential(email);
+  if (!found) return false;
+  if (found.credential.accountId) return found.credential.accountId === accountId;
+  try {
+    await dripFetch(
+      `/realms/${realmId}/credentials/link?${emailCredentialQuery(found.kind, email)}&accountId=${encodeURIComponent(accountId)}`,
+      { method: 'POST' }
+    );
+    return true;
+  } catch (error) {
+    console.error('[linkEmailCredentialToAccount] link failed:', error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
+/**
+ * Award GRIT to an email address.
+ * - Member with a Drip account -> credited to the account.
+ * - Otherwise -> held on their email credential (created if needed) and moved into
+ *   their account automatically when that email is linked to one.
  */
 export async function awardGritToEmail(
   email: string,
@@ -381,26 +462,35 @@ export async function awardGritToEmail(
   reason?: string
 ): Promise<{ success: boolean; error?: string }> {
   const emailLower = email.toLowerCase();
-  console.log(`[awardGritToEmail] Awarding ${amount} GRIT to ${emailLower}`);
+  const realmId = process.env.DRIP_REALM_ID;
+  if (!realmId) return { success: false, error: 'DRIP_REALM_ID is not configured' };
 
-  // Use the same function that works during login
-  const accountId = await getOrCreateDripAccount(emailLower, emailLower.split('@')[0]);
-
-  if (accountId) {
-    console.log(`[awardGritToEmail] Got accountId ${accountId}, awarding via member endpoint`);
-    const awarded = await awardGritToAccount(accountId, amount, reason);
-    if (awarded) {
-      return { success: true };
-    }
-    return { success: false, error: `awardGritToAccount failed for ${accountId}` };
+  // 1) Existing Drip member with this email
+  const member = await getMemberByEmail(emailLower);
+  if (member?.id) {
+    const ok = await awardGritToAccount(member.id, amount, reason);
+    return ok ? { success: true } : { success: false, error: `awardGritToAccount failed for ${member.id}` };
   }
 
-  // No account - GRIT will stay pending until user logs in
-  console.log(`[awardGritToEmail] No Drip account for ${emailLower}, GRIT remains pending`);
-  return {
-    success: false,
-    error: `No Drip account found/created for ${emailLower}. User needs to log in first.`
-  };
+  // 2) Email credential (linked -> account, unlinked -> hold balance on it)
+  const found = await ensureEmailCredential(emailLower, emailLower.split('@')[0]);
+  if (!found) return { success: false, error: 'Could not find or create an email credential in Drip' };
+
+  if (found.credential.accountId) {
+    const ok = await awardGritToAccount(found.credential.accountId, amount, reason);
+    return ok ? { success: true } : { success: false, error: `awardGritToAccount failed for ${found.credential.accountId}` };
+  }
+
+  try {
+    const gritId = process.env.DRIP_GRIT_CURRENCY_ID;
+    await dripFetch(`/realms/${realmId}/credentials/balance?${emailCredentialQuery(found.kind, emailLower)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ amount, ...(gritId && { realmPointId: gritId }) }),
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Credential balance update failed' };
+  }
 }
 
 /**
@@ -562,58 +652,16 @@ export async function searchMembersByUsername(query: string, limit: number = 10)
  */
 export async function getOrCreateDripAccount(email: string, username?: string): Promise<string | null> {
   const emailLower = email.toLowerCase();
-  console.log('[getOrCreateDripAccount] Looking up:', emailLower);
 
-  // First check if credential already exists
-  const existingCredential = await findCredentialByEmail(emailLower);
-  console.log('[getOrCreateDripAccount] existingCredential:', JSON.stringify(existingCredential));
-  if (existingCredential?.accountId) {
-    console.log('[getOrCreateDripAccount] Found credential with accountId:', existingCredential.accountId);
-    return existingCredential.accountId;
-  }
-
-  // Also check if member exists via search
+  // Existing Drip member with this email
   const existingMember = await getMemberByEmail(emailLower);
-  console.log('[getOrCreateDripAccount] existingMember:', JSON.stringify(existingMember));
-  if (existingMember?.id) {
-    console.log('[getOrCreateDripAccount] Found member:', existingMember.id);
-    return existingMember.id;
-  }
+  if (existingMember?.id) return existingMember.id;
 
-  // Found a ghost credential without accountId - log it
-  if (existingCredential) {
-    console.log('[getOrCreateDripAccount] Found GHOST credential (no accountId) for:', emailLower);
-  }
-
-  // Try to create new credential (this creates an account too)
-  try {
-    console.log('[getOrCreateDripAccount] Attempting to create credential...');
-    const newCredential = await createEmailCredential(emailLower, username);
-    console.log('[getOrCreateDripAccount] newCredential:', JSON.stringify(newCredential));
-    if (newCredential?.accountId) {
-      return newCredential.accountId;
-    }
-  } catch (e) {
-    console.log('[getOrCreateDripAccount] createEmailCredential failed:', e);
-  }
-
-  // If creation failed (maybe credential already exists), try finding again
-  // The Drip API might have created/linked an account in the process
-  console.log('[getOrCreateDripAccount] Retrying lookups...');
-  const retryCredential = await findCredentialByEmail(emailLower);
-  console.log('[getOrCreateDripAccount] retryCredential:', JSON.stringify(retryCredential));
-  if (retryCredential?.accountId) {
-    return retryCredential.accountId;
-  }
-
-  const retryMember = await getMemberByEmail(emailLower);
-  console.log('[getOrCreateDripAccount] retryMember:', JSON.stringify(retryMember));
-  if (retryMember?.id) {
-    return retryMember.id;
-  }
-
-  console.error('[getOrCreateDripAccount] Could not get or create Drip account for:', emailLower);
-  return null;
+  // Email credential (either storage form); create it if missing so future GRIT has a home.
+  // If it is linked we get the account; if it is a ghost there is no account yet (null),
+  // and any GRIT stays on the credential until it is linked.
+  const found = await ensureEmailCredential(emailLower, username);
+  return found?.credential.accountId || null;
 }
 
 /**

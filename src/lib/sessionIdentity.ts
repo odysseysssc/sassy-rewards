@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from './auth';
-import { getMemberByEmail, getMemberByWallet, getMemberByDiscordId, getMemberByAccountId } from './drip';
+import { getMemberByEmail, getMemberByWallet, getMemberByDiscordId, getMemberByAccountId, getEmailCredentialGrit, DripMember } from './drip';
 
 /**
  * The GRIT identity of the logged-in user, taken from the server session only.
@@ -27,6 +27,14 @@ export async function getSessionMember() {
   if (!member && user.wallet) member = await getMemberByWallet(user.wallet);
   if (!member && user.discordId) member = await getMemberByDiscordId(user.discordId);
   if (!member && user.email) member = await getMemberByEmail(user.email);
+
+  // No Drip account yet (email-only users): show GRIT held on their email credential.
+  // id is empty because there is no account to act on; it moves into one when they
+  // connect Discord or a wallet.
+  if (!member && user.email) {
+    const points = await getEmailCredentialGrit(user.email);
+    member = { id: '', email: user.email, points } as DripMember;
+  }
   return { authed: true as const, member };
 }
 

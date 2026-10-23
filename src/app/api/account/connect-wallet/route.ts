@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase';
-import { getMemberByWallet, linkCredentialToAccount, findCredential } from '@/lib/drip';
+import { getMemberByWallet, linkCredentialToAccount, findCredential, linkEmailCredentialToAccount } from '@/lib/drip';
 import { verifyWalletChallenge } from '@/lib/walletAuth';
 
 export async function POST(request: NextRequest) {
@@ -93,6 +93,15 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         console.error('Error linking wallet in Drip:', error);
         // Non-fatal - credential is still saved in our DB
+      }
+    }
+
+    // Move any GRIT held on the user's email into the (possibly newly adopted) account
+    if (userDripAccountId && session.user.email) {
+      try {
+        await linkEmailCredentialToAccount(session.user.email, userDripAccountId);
+      } catch (error) {
+        console.error('Error linking email credential in Drip:', error);
       }
     }
 
