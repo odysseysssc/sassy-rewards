@@ -52,21 +52,18 @@ export const ALL_TRAITS: Record<string, string[]> = {
   ]
 };
 
-// Pin Wheel pins - 15 total (Dolomites + Sassy Hands sets)
+// Pin Wheel segments - 10 total: the 8 Sassy Hands pins + Mystery Pack twice.
+// Every segment has equal odds, so Mystery Pack wins 2/10 (20%) and each hand pin 1/10.
+// The two Mystery Pack segments sit opposite each other on the wheel.
+const MYSTERY_PACK = { name: 'Mystery Pack', image: '/images/new pins /Mystery Pack.png' } as const;
+
 export const PINS = [
-  // Dolomites set
-  { name: 'Dolomites', image: '/images/new pins /Dolomites.png' },
-  { name: 'Chalet', image: '/images/new pins /Chalet.png' },
-  { name: 'Gondola', image: '/images/new pins /Gondola.png' },
-  { name: 'Snow Pine', image: '/images/new pins /Snow Pine.png' },
-  { name: 'Goggles', image: '/images/new pins /Goggles.png' },
-  { name: 'Stars and Stripes', image: '/images/new pins /Stars and Stripes.png' },
-  { name: 'Union Jack', image: '/images/new pins /Union Jack.png' },
-  // Sassy Hands set
+  MYSTERY_PACK,
   { name: 'Fingers Crossed', image: '/images/new pins /Fingers Crossed.png' },
   { name: 'Fist Left', image: '/images/new pins /Fist Left.png' },
   { name: 'Fist Right', image: '/images/new pins /Fist Right.png' },
   { name: 'Hands Up', image: '/images/new pins /Hands Up.png' },
+  MYSTERY_PACK,
   { name: 'OK', image: '/images/new pins /OK.png' },
   { name: 'Peace', image: '/images/new pins /Peace .png' },
   { name: 'Pray', image: '/images/new pins /Pray.png' },
@@ -75,6 +72,15 @@ export const PINS = [
 
 // Legacy pins (for displaying old wins on profiles)
 export const LEGACY_PINS = [
+  // Dolomites set (on the wheel until Oct 2026)
+  { name: 'Dolomites', image: '/images/new pins /Dolomites.png' },
+  { name: 'Chalet', image: '/images/new pins /Chalet.png' },
+  { name: 'Gondola', image: '/images/new pins /Gondola.png' },
+  { name: 'Snow Pine', image: '/images/new pins /Snow Pine.png' },
+  { name: 'Goggles', image: '/images/new pins /Goggles.png' },
+  { name: 'Stars and Stripes', image: '/images/new pins /Stars and Stripes.png' },
+  { name: 'Union Jack', image: '/images/new pins /Union Jack.png' },
+  // Older sets
   { name: 'Beer Can', image: '/images/Beer can.png' },
   { name: 'Base Logo', image: '/images/base logo.png' },
   { name: 'Bitcoin Logo', image: '/images/bitcoin logo.png' },
@@ -97,7 +103,10 @@ export const LEGACY_PINS = [
 ] as const;
 
 // All pins (current + legacy) for profile display and Golden Ticket awards
-export const ALL_AWARD_PINS = [...PINS, ...LEGACY_PINS];
+// (deduplicated by name: Mystery Pack appears twice on the wheel)
+export const ALL_AWARD_PINS = [...PINS, ...LEGACY_PINS].filter(
+  (pin, i, all) => all.findIndex((p) => p.name === pin.name) === i
+);
 
 export const NAV_LINKS = [
   { href: '/', label: 'Collector Dashboard' },

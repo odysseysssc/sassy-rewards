@@ -11,7 +11,7 @@ type PinWheelProps = {
   autoPlay?: boolean;
 };
 
-const SEGMENT_COUNT = PINS.length; // 19
+const SEGMENT_COUNT = PINS.length; // 10 (Mystery Pack appears twice)
 const SEGMENT_ANGLE = 360 / SEGMENT_COUNT;
 
 export function PinWheel({ targetSegment, isSpinning, onSpinComplete, autoPlay = false }: PinWheelProps) {
@@ -137,7 +137,7 @@ export function PinWheel({ targetSegment, isSpinning, onSpinComplete, autoPlay =
 
           return (
             <div
-              key={pin.name}
+              key={`${pin.name}-${i}`}
               className="absolute w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 lg:w-11 lg:h-11 group/pin cursor-pointer"
               style={{
                 left: `${imgX}%`,

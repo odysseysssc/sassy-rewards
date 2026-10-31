@@ -113,7 +113,8 @@ async function notifyDiscord(identifier: string, pin: string) {
   // Find the pin in constants to get the correct image path
   const pinData = ALL_AWARD_PINS.find(p => p.name === pin);
   const pinImagePath = pinData?.image || `/images/${pin.toLowerCase()}.png`;
-  const pinImageUrl = `https://portal.shreddingsassy.com${pinImagePath}`;
+  // Pin images live on the rewards site (the portal doesn't have the new sets); encode spaces
+  const pinImageUrl = `https://rewards.shreddingsassy.com${encodeURI(pinImagePath)}`;
 
   // Build message with ping if we have Discord ID
   const winnerMention = discordId ? `<@${discordId}>` : `**${displayName}**`;
