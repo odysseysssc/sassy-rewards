@@ -72,6 +72,10 @@ function ProfileContent() {
   const { signMessageAsync } = useSignMessage();
 
   const [gritBalance, setGritBalance] = useState<number | null>(null);
+  const [holderTier, setHolderTier] = useState<{
+    tier: { id: string; name: string; multiplier: number };
+    furTypes: number; hasOneOfOne: boolean; headlinerPasses: number; sassyCount: number; walletCount: number;
+  } | null>(null);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [prizes, setPrizes] = useState<Prize[]>([]);
@@ -228,6 +232,17 @@ function ProfileContent() {
       fetchCredentials();
     }
   }, [session?.user?.id, fetchDisplayName, fetchAddress, fetchCredentials]);
+
+  // Holder tier (GRIT earn rate on merch) from linked wallets; refresh when wallets change
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    let cancelled = false;
+    fetch('/api/account/holder-tier')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d?.tier) setHolderTier(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [session?.user?.id, connectedCredentials.length]);
 
   // Safety net: if the display name is still loading after a few seconds (a re-render
   // during sign-in can drop the first response), ask again.
@@ -557,6 +572,55 @@ function ProfileContent() {
             )}
           </div>
         </div>
+
+        {/* GRIT earn rate (holder tier) */}
+        {holderTier && (() => {
+          const t = holderTier;
+          const fullSass = t.furTypes >= 16 || t.hasOneOfOne;
+          const halfPack = t.furTypes >= 8 || fullSass;
+          const headliner = t.headlinerPasses > 0;
+          const pills = [
+            { key: 'full', name: 'Full Sass Pack', x: 2.5, earned: fullSass,
+              hint: fullSass ? (t.furTypes >= 16 ? 'all 16 furs' : 'via 1:1') : `${t.furTypes}/16 furs` },
+            { key: 'half', name: 'Half Pack', x: 2, earned: halfPack,
+              hint: halfPack ? `${t.furTypes} furs` : `${t.furTypes}/8 furs` },
+            { key: 'headliner', name: 'Headliner', x: 1.75, earned: headliner,
+              hint: headliner ? `${t.headlinerPasses} pass${t.headlinerPasses > 1 ? 'es' : ''}` : 'needs a pass' },
+          ];
+          return (
+            <div className="card-premium rounded-xl px-5 py-4 mb-4">
+              <p className="text-white/50 text-sm">
+                Earn more GRIT on merch depending on what you hold: more fur types or a Headliner Pass means a higher rate.
+              </p>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mt-3">
+                <div className="text-xl font-bold text-white">
+                  You earn <span className="text-gold">{t.tier.multiplier}x GRIT</span>
+                  <span className="text-white/40 text-base font-normal"> · {t.tier.multiplier * 10} per $1 · {t.tier.name}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {pills.map((p) => (
+                    <span
+                      key={p.key}
+                      className={`text-xs px-3 py-1.5 rounded-full border ${
+                        p.earned ? 'border-gold/60 bg-gold/15 text-white' : 'border-white/10 text-white/40'
+                      }`}
+                    >
+                      {p.earned ? '✓ ' : ''}<span className="font-semibold">{p.name}</span> {p.x}x
+                      <span className={p.earned ? 'text-white/50' : 'text-white/30'}> · {p.hint}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+              {t.walletCount === 0 && (
+                <p className="text-white/40 text-xs mt-3">
+                  No wallet linked yet.{' '}
+                  <button onClick={handleConnectWallet} className="text-gold hover:underline">Link a wallet</button>{' '}
+                  to unlock holder rates.
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Connect Email Banner - Show when logged in without email */}
         {!displayEmail && isLoggedIn && (
