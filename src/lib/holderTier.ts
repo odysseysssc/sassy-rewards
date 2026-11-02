@@ -66,3 +66,42 @@ export function computeHolderTier(sassys: SassyLike[], headlinerPasses = 0): Hol
 
   return { tier, sassyCount: sassys.length, furTypes, hasOneOfOne, headlinerPasses, next };
 }
+
+// ---------------------------------------------------------------------------
+// Trait fallback: Alchemy sometimes returns Sassys with no attributes (stale cache
+// after the metadata moved to Arweave). Read those straight from the canonical
+// metadata so fur counts / tiers are never understated.
+// ---------------------------------------------------------------------------
+
+export const SASSY_METADATA_BASE = 'https://arweave.net/53v4CoK0hznzGZCy34cgroJzrAlK3XnRtLpzK07ytVI';
+
+type Attr = { trait_type: string; value: string };
+const attributeCache = new Map<string, Attr[]>();
+
+async function fetchSassyAttributes(tokenId: string): Promise<Attr[]> {
+  const cached = attributeCache.get(tokenId);
+  if (cached) return cached;
+  const res = await fetch(`${SASSY_METADATA_BASE}/${tokenId}`, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`metadata ${tokenId}: ${res.status}`);
+  const json = JSON.parse(await res.text());
+  const attrs: Attr[] = Array.isArray(json?.attributes) ? json.attributes : [];
+  attributeCache.set(tokenId, attrs);
+  return attrs;
+}
+
+/** Fill in attributes for any token that came back without them (in place). */
+export async function fillMissingAttributes<T extends { tokenId?: string; attributes?: Attr[] }>(tokens: T[]): Promise<T[]> {
+  const missing = tokens.filter((t) => t.tokenId && (!t.attributes || t.attributes.length === 0));
+  for (let i = 0; i < missing.length; i += 8) {
+    await Promise.all(
+      missing.slice(i, i + 8).map(async (t) => {
+        try {
+          t.attributes = await fetchSassyAttributes(t.tokenId as string);
+        } catch (error) {
+          console.error('[fillMissingAttributes]', error instanceof Error ? error.message : error);
+        }
+      })
+    );
+  }
+  return tokens;
+}
