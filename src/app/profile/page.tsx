@@ -129,7 +129,10 @@ function ProfileContent() {
 
   // Fetch display name
   const fetchDisplayName = useCallback(async () => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      setDisplayNameLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch('/api/account/display-name');
@@ -225,6 +228,14 @@ function ProfileContent() {
       fetchCredentials();
     }
   }, [session?.user?.id, fetchDisplayName, fetchAddress, fetchCredentials]);
+
+  // Safety net: if the display name is still loading after a few seconds (a re-render
+  // during sign-in can drop the first response), ask again.
+  useEffect(() => {
+    if (!displayNameLoading || !session?.user?.id) return;
+    const retry = setTimeout(() => fetchDisplayName(), 4000);
+    return () => clearTimeout(retry);
+  }, [displayNameLoading, session?.user?.id, fetchDisplayName]);
 
   // Refetch credentials when returning from Discord or Email linking
   useEffect(() => {
